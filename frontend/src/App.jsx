@@ -756,10 +756,6 @@ export default function App() {
         occasion: detectedOccasions,
         season: detectedSeasons,
         style: detectedStyle,
-        price: 110,
-        discountPrice: null,
-        rating: 5.0,
-        reviewsCount: 1,
         description: `Authentic ${detectedMaterial} ${detectedName} (${detectedPattern} pattern, suited for ${detectedOccasions.join(', ')}).`,
         details: [
           'Background & Person Removed',
@@ -768,7 +764,6 @@ export default function App() {
           `Occasions: ${detectedOccasions.join(', ')}`,
           `Season: ${detectedSeasons.join(', ')}`,
         ],
-        sizes: ['XS', 'S', 'M', 'L'],
         colors: [{ name: detectedColorName, hex: detectedColorHex }],
         primaryColor: detectedColorHex,
         brand: 'My Closet',

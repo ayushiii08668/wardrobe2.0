@@ -201,13 +201,8 @@ function backendItemToProduct(item) {
     occasion:      item.occasion || [],
     style:         item.style || [],
     colorName:     item.color || 'Custom',
-    price:         item.price || 100,
-    discountPrice: null,
-    rating:        4.5,
-    reviewsCount:  0,
     description:   item.description || 'Your wardrobe item.',
     details:       ['Personal Wardrobe Item', 'Virtual Try-On Ready', `Fabric: ${item.material || 'Standard'}`, `Pattern: ${item.pattern || 'Plain'}`],
-    sizes:         item.size ? [item.size] : ['S', 'M', 'L'],
     colors:        [{ name: item.color || 'Custom', hex: color }],
     primaryColor:  color,
     brand:         item.brand || 'My Wardrobe',
@@ -339,9 +334,7 @@ export async function addClothingItem(token, {
     style:           Array.isArray(style) ? style : (style ? [style] : []),
     brand:           brand || 'My Closet',
     description:     description || 'Uploaded from WardrobeWise virtual room.',
-    size:            size || 'M',
-    tags:            tags || [],
-    price:           110
+    tags:            tags || []
   };
   if (imageUrl) payload.imageUrl = imageUrl;
   if (model3d) payload.model3d = model3d;
