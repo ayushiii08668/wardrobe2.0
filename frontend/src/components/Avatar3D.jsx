@@ -509,6 +509,44 @@ export default function Avatar3D({
       }
 
       const dressMat = buildGarmentMaterial(dressItem, origTopMat);
+      dressMat.polygonOffset = true;
+      dressMat.polygonOffsetFactor = -1;
+      dressMat.polygonOffsetUnits = -2;
+
+      // Helper: Ensure avatar's natural arms and legs remain visible with authentic bare skin under dresses
+      const applyBareSkinLimbs = () => {
+        const skinColor = personalizedProfile?.skinColor
+          ? new THREE.Color(personalizedProfile.skinColor)
+          : (meshesRef.current.body?.material?.color
+              ? meshesRef.current.body.material.color.clone()
+              : new THREE.Color('#e49a7b'));
+
+        const skinMat = meshesRef.current.body?.material
+          ? meshesRef.current.body.material.clone()
+          : new THREE.MeshPhysicalMaterial({
+              roughness: 0.58,
+              metalness: 0.0,
+              envMapIntensity: 1.0,
+            });
+
+        skinMat.color = skinColor;
+        skinMat.roughness = 0.58;
+        skinMat.metalness = 0.0;
+        skinMat.side = THREE.DoubleSide;
+        skinMat.needsUpdate = true;
+
+        if (top) {
+          top.material = skinMat;
+          top.renderOrder = 1;
+          top.visible = true;
+        }
+        if (bottom) {
+          bottom.material = skinMat;
+          bottom.renderOrder = 1;
+          bottom.visible = true;
+        }
+      };
+
       const customGlbUrl = dressItem?.modelUrl || dressItem?.model3d?.modelUrl;
 
       // If a custom cloud-generated GLB URL exists, load and auto-rig it
@@ -524,12 +562,12 @@ export default function Avatar3D({
             cleanAllAttachedDresses();
             riggedMesh.name = 'Avatar_Active_Dress';
             riggedMesh.userData.isTryOnGarment = true;
+            riggedMesh.renderOrder = 2;
             avatarScene.add(riggedMesh);
             activeDressRef.current = riggedMesh;
 
-            // Hide underlying body garments to completely eliminate clipping
-            if (top) top.visible = false;
-            if (bottom) bottom.visible = false;
+            // Retain bare arms and legs so natural limbs are 100% visible
+            applyBareSkinLimbs();
           })
           .catch((err) => {
             console.warn('[Avatar3D] Could not load custom GLB, using procedural fallback:', err.message);
@@ -543,10 +581,12 @@ export default function Avatar3D({
               dressSkinnedMesh.castShadow = true;
               dressSkinnedMesh.receiveShadow = true;
               dressSkinnedMesh.frustumCulled = false;
+              dressSkinnedMesh.renderOrder = 2;
               avatarScene.add(dressSkinnedMesh);
               activeDressRef.current = dressSkinnedMesh;
-              if (top) top.visible = false;
-              if (bottom) bottom.visible = false;
+
+              // Retain bare arms and legs so natural limbs are 100% visible
+              applyBareSkinLimbs();
             }
           });
       } else if (targetGeom && top?.skeleton) {
@@ -559,13 +599,13 @@ export default function Avatar3D({
         dressSkinnedMesh.castShadow = true;
         dressSkinnedMesh.receiveShadow = true;
         dressSkinnedMesh.frustumCulled = false;
+        dressSkinnedMesh.renderOrder = 2;
 
         avatarScene.add(dressSkinnedMesh);
         activeDressRef.current = dressSkinnedMesh;
 
-        // Hide separate top and bottom pants underneath to completely eliminate clipping
-        if (top) top.visible = false;
-        if (bottom) bottom.visible = false;
+        // Retain bare arms and legs so natural limbs are 100% visible
+        applyBareSkinLimbs();
       }
     } else {
       // ── SEPARATE PIECES (Tops & Trousers): Ensure any active dress is completely removed ──
