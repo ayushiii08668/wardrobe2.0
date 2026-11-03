@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   Scissors,
@@ -8,14 +8,121 @@ import {
   RotateCcw,
   Shirt,
   Layers,
-  Palette
+  Palette,
+  Tag,
+  Sun,
+  Calendar,
+  Check,
+  Compass
 } from 'lucide-react';
+
+export const COLOR_OPTIONS = [
+  { name: 'Pink', hex: '#ec4899' },
+  { name: 'Red', hex: '#dc2626' },
+  { name: 'Blue', hex: '#2563eb' },
+  { name: 'Navy Blue', hex: '#1e3a8a' },
+  { name: 'Black', hex: '#1c1c1f' },
+  { name: 'White', hex: '#f8fafc' },
+  { name: 'Green', hex: '#16a34a' },
+  { name: 'Emerald', hex: '#059669' },
+  { name: 'Yellow', hex: '#eab308' },
+  { name: 'Beige', hex: '#d4b79b' },
+  { name: 'Brown', hex: '#78350f' },
+  { name: 'Purple', hex: '#9333ea' },
+  { name: 'Grey', hex: '#6b7280' },
+];
+
+export const CATEGORY_OPTIONS = [
+  'Frock',
+  'Dress',
+  'Top',
+  'T-Shirt',
+  'Shirt',
+  'Jeans',
+  'Trousers',
+  'Jacket',
+  'Skirt',
+  'Saree',
+  'Kurti',
+  'Shoes',
+  'Accessories'
+];
+
+export const PATTERN_OPTIONS = ['Plain', 'Floral', 'Striped', 'Checked', 'Printed'];
+
+export const MATERIAL_OPTIONS = [
+  'Cotton',
+  'Silk',
+  'Chiffon',
+  'Denim',
+  'Satin',
+  'Linen',
+  'Wool',
+  'Leather',
+  'Rayon',
+  'Other'
+];
+
+export const OCCASION_OPTIONS = [
+  'Party',
+  'Casual',
+  'College',
+  'Work',
+  'Dinner',
+  'Wedding',
+  'Festive',
+  'Travel'
+];
+
+export const SEASON_OPTIONS = [
+  'Summer',
+  'Winter',
+  'Spring',
+  'Autumn',
+  'Monsoon'
+];
+
+export const STYLE_OPTIONS = [
+  'Chic',
+  'Casual',
+  'Elegant',
+  'Streetwear',
+  'Minimalist',
+  'Romantic',
+  'Traditional'
+];
+
+function findClosestColor(hex) {
+  if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return 'Pink';
+  const cleanHex = hex.replace('#', '');
+  if (cleanHex.length < 6) return 'Pink';
+  const r = parseInt(cleanHex.substring(0, 2), 16) || 0;
+  const g = parseInt(cleanHex.substring(2, 4), 16) || 0;
+  const b = parseInt(cleanHex.substring(4, 6), 16) || 0;
+
+  let minDistance = Infinity;
+  let bestColor = 'Pink';
+
+  for (const opt of COLOR_OPTIONS) {
+    const oHex = opt.hex.replace('#', '');
+    const or = parseInt(oHex.substring(0, 2), 16);
+    const og = parseInt(oHex.substring(2, 4), 16);
+    const ob = parseInt(oHex.substring(4, 6), 16);
+    const dist = Math.hypot(r - or, g - og, b - ob);
+    if (dist < minDistance) {
+      minDistance = dist;
+      bestColor = opt.name;
+    }
+  }
+  return bestColor;
+}
 
 /**
  * GarmentExtractionModal
  * Gives users an interactive verification checkpoint where they can inspect
  * the extracted garment (with person and background removed) on a transparent
- * checkerboard background before proceeding with 3D synthesis & avatar fitting.
+ * checkerboard background, answer/review details (color, category, pattern,
+ * material, occasions, season, style) to ground RAG retrieval, and proceed to 3D virtual try-on.
  */
 export default function GarmentExtractionModal({
   isOpen,
@@ -29,7 +136,132 @@ export default function GarmentExtractionModal({
   onRetry,
   errorMessage,
 }) {
+  const [name, setName] = useState('Pink Tiered Floral Frock');
+  const [category, setCategory] = useState('Dress');
+  const [subCategory, setSubCategory] = useState('Tiered Frock');
+  const [colorName, setColorName] = useState('Pink');
+  const [colorHex, setColorHex] = useState('#ec4899');
+  const [pattern, setPattern] = useState('Floral');
+  const [material, setMaterial] = useState('Chiffon');
+  const [occasions, setOccasions] = useState(['Party', 'Casual']);
+  const [seasons, setSeasons] = useState(['Summer', 'Spring']);
+  const [styles, setStyles] = useState(['Chic', 'Romantic']);
+
+  // Pre-fill form when geminiData arrives or updates
+  useEffect(() => {
+    if (!geminiData) return;
+
+    if (geminiData.name) {
+      setName(geminiData.name);
+    }
+
+    if (geminiData.category) {
+      const c = geminiData.category.toLowerCase();
+      if (c.includes('frock')) setCategory('Frock');
+      else if (c.includes('dress')) setCategory('Dress');
+      else if (c.includes('jeans')) setCategory('Jeans');
+      else if (c.includes('trouser') || c.includes('pant')) setCategory('Trousers');
+      else if (c.includes('t-shirt') || c.includes('tee')) setCategory('T-Shirt');
+      else if (c.includes('shirt')) setCategory('Shirt');
+      else if (c.includes('jacket') || c.includes('coat')) setCategory('Jacket');
+      else if (c.includes('skirt')) setCategory('Skirt');
+      else if (c.includes('saree')) setCategory('Saree');
+      else if (c.includes('kurti')) setCategory('Kurti');
+      else if (c.includes('shoe')) setCategory('Shoes');
+      else setCategory('Top');
+    }
+
+    if (geminiData.primaryColor) {
+      setColorHex(geminiData.primaryColor);
+      const matched = findClosestColor(geminiData.primaryColor);
+      if (matched) setColorName(matched);
+    }
+
+    if (geminiData.pattern) {
+      const p = geminiData.pattern.toLowerCase();
+      if (p.includes('floral')) setPattern('Floral');
+      else if (p.includes('strip')) setPattern('Striped');
+      else if (p.includes('check')) setPattern('Checked');
+      else if (p.includes('print')) setPattern('Printed');
+      else setPattern('Plain');
+    }
+
+    if (geminiData.fabric) {
+      const f = geminiData.fabric.toLowerCase();
+      if (f.includes('cotton')) setMaterial('Cotton');
+      else if (f.includes('silk')) setMaterial('Silk');
+      else if (f.includes('chiffon')) setMaterial('Chiffon');
+      else if (f.includes('satin')) setMaterial('Satin');
+      else if (f.includes('denim')) setMaterial('Denim');
+      else if (f.includes('linen')) setMaterial('Linen');
+      else if (f.includes('wool')) setMaterial('Wool');
+    }
+
+    if (geminiData.silhouette) {
+      const formatted = geminiData.silhouette.replace(/-/g, ' ');
+      setSubCategory(formatted.replace(/\b\w/g, (ch) => ch.toUpperCase()));
+    }
+  }, [geminiData]);
+
   if (!isOpen) return null;
+
+  const handleColorChange = (hex) => {
+    setColorHex(hex);
+    const closest = findClosestColor(hex);
+    if (closest) setColorName(closest);
+  };
+
+  const handleColorNameSelect = (name) => {
+    setColorName(name);
+    const match = COLOR_OPTIONS.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    if (match) setColorHex(match.hex);
+  };
+
+  const toggleOccasion = (occ) => {
+    setOccasions((prev) =>
+      prev.includes(occ) ? (prev.length > 1 ? prev.filter((o) => o !== occ) : prev) : [...prev, occ]
+    );
+  };
+
+  const toggleSeason = (season) => {
+    setSeasons((prev) =>
+      prev.includes(season) ? (prev.length > 1 ? prev.filter((s) => s !== season) : prev) : [...prev, season]
+    );
+  };
+
+  const toggleStyle = (st) => {
+    setStyles((prev) =>
+      prev.includes(st) ? (prev.length > 1 ? prev.filter((s) => s !== st) : prev) : [...prev, st]
+    );
+  };
+
+  const handleConfirm = () => {
+    const details = {
+      name: name.trim() || 'Uploaded Clothing Item',
+      category,
+      subCategory: subCategory.trim() || category,
+      color: colorName,
+      colorHex,
+      primaryColor: colorHex,
+      pattern,
+      material,
+      occasions,
+      seasons,
+      style: styles,
+      tags: [
+        ...occasions.map((o) => o.toLowerCase()),
+        ...seasons.map((s) => s.toLowerCase()),
+        ...styles.map((s) => s.toLowerCase()),
+        colorName.toLowerCase(),
+        pattern.toLowerCase(),
+        material.toLowerCase(),
+        category.toLowerCase(),
+        'custom',
+        'wardrobe',
+      ],
+    };
+    onConfirm3D(details);
+  };
 
   return (
     <div
@@ -41,18 +273,19 @@ export default function GarmentExtractionModal({
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: 'rgba(5, 5, 12, 0.85)',
-        backdropFilter: 'blur(8px)',
-        padding: '1.5rem',
+        backdropFilter: 'blur(10px)',
+        padding: '1.25rem',
       }}
     >
       <div
         style={{
           width: '100%',
-          maxWidth: '680px',
+          maxWidth: '740px',
+          maxHeight: '92vh',
           backgroundColor: '#13111c',
-          border: '1px solid rgba(168, 85, 247, 0.3)',
+          border: '1px solid rgba(168, 85, 247, 0.35)',
           borderRadius: '1.25rem',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(168, 85, 247, 0.2)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 35px rgba(168, 85, 247, 0.25)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
@@ -63,12 +296,13 @@ export default function GarmentExtractionModal({
         {/* Header */}
         <div
           style={{
-            padding: '1.25rem 1.5rem',
+            padding: '1.1rem 1.5rem',
             borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'linear-gradient(90deg, rgba(168, 85, 247, 0.15), rgba(236, 72, 153, 0.15))',
+            background: 'linear-gradient(90deg, rgba(168, 85, 247, 0.18), rgba(236, 72, 153, 0.18))',
+            flexShrink: 0,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -87,11 +321,11 @@ export default function GarmentExtractionModal({
               <Scissors size={20} />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 600 }}>
-                Garment Extraction & AI Inspection
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>
+                Garment Inspection & RAG Metadata Details
               </h3>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>
-                Powered by Google Gemini Multimodal AI & OpenCV Segmentation
+              <p style={{ margin: 0, fontSize: '0.78rem', color: '#94a3b8' }}>
+                AI segmentation removes background/person • Fill details below to power RAG stylist answers
               </p>
             </div>
           </div>
@@ -112,8 +346,16 @@ export default function GarmentExtractionModal({
           )}
         </div>
 
-        {/* Body */}
-        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        {/* Scrollable Body */}
+        <div
+          style={{
+            padding: '1.25rem 1.5rem',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.25rem',
+          }}
+        >
           {/* Loading / Extracting State */}
           {(stage === 'extracting' || stage === 'synthesizing') && (
             <div
@@ -153,25 +395,25 @@ export default function GarmentExtractionModal({
             </div>
           )}
 
-          {/* Preview State: Display extracted transparent garment */}
+          {/* Preview State: Display extracted transparent garment + Questionnaire */}
           {stage === 'preview' && (
-            <div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Top Side-by-Side Images */}
               <div
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr',
                   gap: '1rem',
-                  marginBottom: '1rem',
                 }}
               >
                 {/* Original Image */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 500 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 500 }}>
                     Original Uploaded Photo
                   </span>
                   <div
                     style={{
-                      height: '240px',
+                      height: '190px',
                       borderRadius: '0.75rem',
                       overflow: 'hidden',
                       backgroundColor: '#1e1b2e',
@@ -190,10 +432,10 @@ export default function GarmentExtractionModal({
                 </div>
 
                 {/* Extracted Transparent Garment (Checkerboard Pattern) */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                   <span
                     style={{
-                      fontSize: '0.8rem',
+                      fontSize: '0.78rem',
                       color: '#4ade80',
                       fontWeight: 600,
                       display: 'flex',
@@ -201,11 +443,11 @@ export default function GarmentExtractionModal({
                       gap: '0.35rem',
                     }}
                   >
-                    <CheckCircle size={14} /> Extracted Clothing Only (Alpha PNG)
+                    <CheckCircle size={14} /> Extracted Garment (Alpha Cutout)
                   </span>
                   <div
                     style={{
-                      height: '240px',
+                      height: '190px',
                       borderRadius: '0.75rem',
                       overflow: 'hidden',
                       backgroundImage:
@@ -213,7 +455,7 @@ export default function GarmentExtractionModal({
                       backgroundSize: '16px 16px',
                       backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0px',
                       backgroundColor: '#0f0e17',
-                      border: '2px solid rgba(74, 222, 128, 0.4)',
+                      border: '2px solid rgba(74, 222, 128, 0.45)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -234,125 +476,341 @@ export default function GarmentExtractionModal({
                 </div>
               </div>
 
-              {/* Gemini Fashion Metadata Badges */}
-              {geminiData && (
-                <div
-                  style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: '0.75rem',
-                    padding: '0.875rem 1rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.5rem',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#f1f5f9' }}>
-                      {geminiData.name || 'Identified Garment'}
+              {/* RAG & Wardrobe Questionnaire Banner */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(236, 72, 153, 0.08))',
+                  border: '1px solid rgba(168, 85, 247, 0.25)',
+                  borderRadius: '0.85rem',
+                  padding: '1rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Sparkles size={18} style={{ color: '#c084fc' }} />
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#f1f5f9' }}>
+                      Wardrobe Details for RAG AI Stylist
+                    </h4>
+                    <span style={{ fontSize: '0.75rem', color: '#a78bfa' }}>
+                      Please review and adjust these questions. The AI Fashion Stylist uses these exact answers to answer questions like <em>"What should I wear to college?"</em> or <em>"Show me my pink party dress"</em>.
                     </span>
-                    <span
-                      style={{
-                        fontSize: '0.75rem',
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: '0.375rem',
-                        backgroundColor: 'rgba(168, 85, 247, 0.2)',
-                        color: '#c084fc',
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      {geminiData.category || 'Dress'}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    {geminiData.neckline && (
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: '0.25rem',
-                          backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                          color: '#cbd5e1',
-                        }}
-                      >
-                        Neckline: <strong>{geminiData.neckline}</strong>
-                      </span>
-                    )}
-                    {geminiData.sleeves && (
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: '0.25rem',
-                          backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                          color: '#cbd5e1',
-                        }}
-                      >
-                        Sleeves: <strong>{geminiData.sleeves}</strong>
-                      </span>
-                    )}
-                    {geminiData.waist && (
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: '0.25rem',
-                          backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                          color: '#cbd5e1',
-                        }}
-                      >
-                        Waist: <strong>{geminiData.waist}</strong>
-                      </span>
-                    )}
-                    {geminiData.skirt && (
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: '0.25rem',
-                          backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                          color: '#cbd5e1',
-                        }}
-                      >
-                        Skirt: <strong>{geminiData.skirt}</strong>
-                      </span>
-                    )}
-                    {geminiData.primaryColor && (
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: '0.25rem',
-                          backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                          color: '#cbd5e1',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                        }}
-                      >
-                        <span
-                          style={{
-                            width: '10px',
-                            height: '10px',
-                            borderRadius: '50%',
-                            backgroundColor: geminiData.primaryColor,
-                            display: 'inline-block',
-                          }}
-                        />
-                        Color: {geminiData.primaryColor}
-                      </span>
-                    )}
                   </div>
                 </div>
-              )}
+
+                {/* Question 1: Item Name */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '0.35rem' }}>
+                    1. Clothing Item Name
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Pink Floral Tiered Frock"
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem 0.8rem',
+                      borderRadius: '0.5rem',
+                      backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#ffffff',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                {/* Question 2: Category & SubCategory / Silhouette */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '0.35rem' }}>
+                      2. Garment Category (Strict for RAG)
+                    </label>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem 0.8rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: '#1a1727',
+                        border: '1px solid rgba(168, 85, 247, 0.4)',
+                        color: '#ffffff',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      {CATEGORY_OPTIONS.map((cat) => (
+                        <option key={cat} value={cat} style={{ backgroundColor: '#1a1727', color: '#ffffff' }}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '0.35rem' }}>
+                      3. Sub-Type / Silhouette Style
+                    </label>
+                    <input
+                      type="text"
+                      value={subCategory}
+                      onChange={(e) => setSubCategory(e.target.value)}
+                      placeholder="e.g. Tiered Frock, Slip Dress, Wide Leg"
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem 0.8rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        color: '#ffffff',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Question 3: Primary Color (Hex + Name) & Pattern */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.85rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '0.35rem' }}>
+                      4. Color (Visual Swatch & Family)
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div
+                        style={{
+                          position: 'relative',
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '0.5rem',
+                          overflow: 'hidden',
+                          border: '2px solid rgba(255, 255, 255, 0.3)',
+                          backgroundColor: colorHex,
+                          flexShrink: 0,
+                          cursor: 'pointer',
+                        }}
+                        title="Click to pick exact color"
+                      >
+                        <input
+                          type="color"
+                          value={colorHex.startsWith('#') ? colorHex : '#ec4899'}
+                          onChange={(e) => handleColorChange(e.target.value)}
+                          style={{
+                            position: 'absolute',
+                            top: '-50%',
+                            left: '-50%',
+                            width: '200%',
+                            height: '200%',
+                            opacity: 0,
+                            cursor: 'pointer',
+                          }}
+                        />
+                      </div>
+                      <select
+                        value={colorName}
+                        onChange={(e) => handleColorNameSelect(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '0.6rem 0.8rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: '#1a1727',
+                          border: '1px solid rgba(168, 85, 247, 0.4)',
+                          color: '#ffffff',
+                          fontSize: '0.85rem',
+                          outline: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {COLOR_OPTIONS.map((col) => (
+                          <option key={col.name} value={col.name} style={{ backgroundColor: '#1a1727' }}>
+                            {col.name}
+                          </option>
+                        ))}
+                      </select>
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          color: '#a78bfa',
+                          fontFamily: 'monospace',
+                          padding: '0.4rem 0.6rem',
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          borderRadius: '0.375rem',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                        }}
+                      >
+                        {colorHex}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '0.35rem' }}>
+                      5. Pattern Design
+                    </label>
+                    <select
+                      value={pattern}
+                      onChange={(e) => setPattern(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem 0.8rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: '#1a1727',
+                        border: '1px solid rgba(168, 85, 247, 0.4)',
+                        color: '#ffffff',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      {PATTERN_OPTIONS.map((pat) => (
+                        <option key={pat} value={pat} style={{ backgroundColor: '#1a1727' }}>
+                          {pat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Question 4: Fabric Material */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '0.35rem' }}>
+                    6. Fabric / Material
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    {MATERIAL_OPTIONS.map((mat) => {
+                      const isSelected = material.toLowerCase() === mat.toLowerCase();
+                      return (
+                        <button
+                          key={mat}
+                          type="button"
+                          onClick={() => setMaterial(mat)}
+                          style={{
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '0.375rem',
+                            border: isSelected ? '1px solid #c084fc' : '1px solid rgba(255, 255, 255, 0.1)',
+                            backgroundColor: isSelected ? 'rgba(168, 85, 247, 0.25)' : 'rgba(255, 255, 255, 0.04)',
+                            color: isSelected ? '#f5d0fe' : '#94a3b8',
+                            fontSize: '0.78rem',
+                            fontWeight: isSelected ? 600 : 400,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {mat}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Question 5: Suitable Occasions (Multi-Select) */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '0.35rem' }}>
+                    7. Suitable Occasions (Click all that apply)
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    {OCCASION_OPTIONS.map((occ) => {
+                      const isSelected = occasions.includes(occ);
+                      return (
+                        <button
+                          key={occ}
+                          type="button"
+                          onClick={() => toggleOccasion(occ)}
+                          style={{
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '999px',
+                            border: isSelected ? '1px solid #ec4899' : '1px solid rgba(255, 255, 255, 0.1)',
+                            backgroundColor: isSelected ? 'rgba(236, 72, 153, 0.25)' : 'rgba(255, 255, 255, 0.04)',
+                            color: isSelected ? '#fbcfe8' : '#94a3b8',
+                            fontSize: '0.78rem',
+                            fontWeight: isSelected ? 600 : 400,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {isSelected && <Check size={12} />}
+                          {occ}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Question 6: Best Seasons & Style Aesthetic */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '0.35rem' }}>
+                      8. Weather / Seasons
+                    </label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                      {SEASON_OPTIONS.map((seas) => {
+                        const isSelected = seasons.includes(seas);
+                        return (
+                          <button
+                            key={seas}
+                            type="button"
+                            onClick={() => toggleSeason(seas)}
+                            style={{
+                              padding: '0.3rem 0.65rem',
+                              borderRadius: '0.375rem',
+                              border: isSelected ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                              backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                              color: isSelected ? '#bae6fd' : '#94a3b8',
+                              fontSize: '0.75rem',
+                              fontWeight: isSelected ? 600 : 400,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {seas}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '0.35rem' }}>
+                      9. Style Aesthetic
+                    </label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                      {STYLE_OPTIONS.map((st) => {
+                        const isSelected = styles.includes(st);
+                        return (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => toggleStyle(st)}
+                            style={{
+                              padding: '0.3rem 0.65rem',
+                              borderRadius: '0.375rem',
+                              border: isSelected ? '1px solid #a855f7' : '1px solid rgba(255, 255, 255, 0.1)',
+                              backgroundColor: isSelected ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                              color: isSelected ? '#e9d5ff' : '#94a3b8',
+                              fontSize: '0.75rem',
+                              fontWeight: isSelected ? 600 : 400,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {st}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -387,52 +845,60 @@ export default function GarmentExtractionModal({
         {stage === 'preview' && (
           <div
             style={{
-              padding: '1rem 1.5rem',
+              padding: '0.85rem 1.5rem',
               borderTop: '1px solid rgba(255, 255, 255, 0.08)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'flex-end',
-              gap: '0.75rem',
-              backgroundColor: 'rgba(0, 0, 0, 0.25)',
+              justifyContent: 'space-between',
+              backgroundColor: 'rgba(0, 0, 0, 0.35)',
+              flexShrink: 0,
             }}
           >
-            <button
-              onClick={onRetry}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                padding: '0.625rem 1rem',
-                borderRadius: '0.5rem',
-                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                color: '#cbd5e1',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                fontSize: '0.875rem',
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
-            >
-              <RotateCcw size={15} /> Discard & Retry
-            </button>
-            <button
-              onClick={onConfirm3D}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.625rem 1.25rem',
-                borderRadius: '0.5rem',
-                background: 'linear-gradient(135deg, #a855f7, #ec4899)',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: '0.875rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(168, 85, 247, 0.4)',
-              }}
-            >
-              <Sparkles size={16} /> Confirm & Try On Avatar
-            </button>
+            <div style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <Compass size={14} style={{ color: '#c084fc' }} />
+              Ready to save to MongoDB & rig to 3D avatar
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={onRetry}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.6rem 1rem',
+                  borderRadius: '0.5rem',
+                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                  color: '#cbd5e1',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                <RotateCcw size={15} /> Discard & Retry
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirm}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.625rem 1.35rem',
+                  borderRadius: '0.5rem',
+                  background: 'linear-gradient(135deg, #a855f7, #ec4899)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(168, 85, 247, 0.4)',
+                }}
+              >
+                <Sparkles size={16} /> Save Details & Try On Avatar
+              </button>
+            </div>
           </div>
         )}
 
@@ -465,4 +931,3 @@ export default function GarmentExtractionModal({
     </div>
   );
 }
-

@@ -599,7 +599,7 @@ export default function App() {
   };
 
   // --- Garment Extraction Confirmation: Runs 3D Generation & Virtual Try-On ---
-  const handleConfirmExtraction = async () => {
+  const handleConfirmExtraction = async (customDetails = null) => {
     const file = extractionModal.pendingFile;
     if (!file) return;
 
@@ -609,26 +609,87 @@ export default function App() {
 
     try {
       const geminiData = extractionModal.geminiData;
-      let detectedCategory = activeCategory !== 'all' ? activeCategory : 'tops';
-      if (geminiData?.garmentCategory) {
-        const cat = (geminiData.garmentCategory || '').toLowerCase();
-        if (cat.includes('dress')) detectedCategory = 'dresses';
-        else if (cat.includes('trouser') || cat.includes('pant') || cat.includes('jean') || cat.includes('skirt')) detectedCategory = 'trousers';
-        else if (cat.includes('shoe') || cat.includes('footwear')) detectedCategory = 'shoes';
-        else if (cat.includes('jacket') || cat.includes('coat')) detectedCategory = 'outerwear';
-        else detectedCategory = 'tops';
+
+      // Extract details either from the user questionnaire or fallback to Gemini / file name
+      const backendCategory = customDetails?.category || 'Dress';
+      let detectedCategory = 'tops';
+      const catLow = backendCategory.toLowerCase();
+      if (
+        catLow.includes('dress') ||
+        catLow.includes('frock') ||
+        catLow.includes('saree') ||
+        catLow.includes('kurti') ||
+        catLow.includes('anarkali') ||
+        catLow.includes('lehenga') ||
+        catLow.includes('skirt')
+      ) {
+        detectedCategory = 'dresses';
+      } else if (
+        catLow.includes('trouser') ||
+        catLow.includes('pant') ||
+        catLow.includes('jean') ||
+        catLow.includes('bottom')
+      ) {
+        detectedCategory = 'trousers';
+      } else if (
+        catLow.includes('shoe') ||
+        catLow.includes('sneaker') ||
+        catLow.includes('boot') ||
+        catLow.includes('heel') ||
+        catLow.includes('sandal') ||
+        catLow.includes('loafer')
+      ) {
+        detectedCategory = 'shoes';
+      } else if (
+        catLow.includes('jacket') ||
+        catLow.includes('coat') ||
+        catLow.includes('blazer') ||
+        catLow.includes('overcoat') ||
+        catLow.includes('cardigan')
+      ) {
+        detectedCategory = 'outerwear';
+      } else if (
+        catLow.includes('accessories') ||
+        catLow.includes('bag') ||
+        catLow.includes('jewelry')
+      ) {
+        detectedCategory = 'accessories';
+      } else {
+        detectedCategory = 'tops';
       }
 
-      let detectedName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
-      detectedName = detectedName.replace(/\b\w/g, (c) => c.toUpperCase());
-      if (geminiData?.designAnalysis?.skirtStyle) {
-        detectedName = `${geminiData.primaryColor || ''} ${geminiData.designAnalysis.skirtStyle} Dress`.trim();
-      }
+      const detectedName =
+        customDetails?.name?.trim() ||
+        (geminiData?.designAnalysis?.skirtStyle
+          ? `${geminiData.primaryColor || ''} ${geminiData.designAnalysis.skirtStyle} Dress`.trim()
+          : file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
 
-      let detectedColor = geminiData?.primaryColor || '#e5779c';
-      let detectedPattern = geminiData?.patternType || 'Plain';
-      let detectedTags = ['custom', 'uploaded', 'extracted', 'wardrobe'];
-      if (detectedPattern) detectedTags.push(detectedPattern.toLowerCase());
+      const detectedColorHex = customDetails?.colorHex || customDetails?.primaryColor || geminiData?.primaryColor || '#e5779c';
+      const detectedColorName = customDetails?.color || 'Pink';
+      const detectedPattern = customDetails?.pattern || geminiData?.patternType || 'Plain';
+      const detectedMaterial = customDetails?.material || 'Cotton';
+      const detectedOccasions = Array.isArray(customDetails?.occasions) && customDetails.occasions.length > 0
+        ? customDetails.occasions
+        : ['Party', 'Casual'];
+      const detectedSeasons = Array.isArray(customDetails?.seasons) && customDetails.seasons.length > 0
+        ? customDetails.seasons
+        : ['Summer', 'Spring'];
+      const detectedStyle = Array.isArray(customDetails?.style) && customDetails.style.length > 0
+        ? customDetails.style
+        : ['Chic'];
+      const detectedSubCategory = customDetails?.subCategory?.trim() || backendCategory;
+      const detectedTags = Array.isArray(customDetails?.tags) && customDetails.tags.length > 0
+        ? customDetails.tags
+        : [
+            ...detectedOccasions.map((o) => o.toLowerCase()),
+            ...detectedSeasons.map((s) => s.toLowerCase()),
+            detectedColorName.toLowerCase(),
+            detectedPattern.toLowerCase(),
+            detectedMaterial.toLowerCase(),
+            backendCategory.toLowerCase(),
+            'custom',
+            'wardrobe'
+          ];
 
       // 1. Cloud-Based 2D-to-3D Garment Generation
       let cloud3DResult = null;
@@ -661,7 +722,7 @@ export default function App() {
       try {
         const cloth3D = await convert2DClothTo3D(clothImageToBake, {
           category: detectedCategory,
-          color: detectedColor,
+          color: detectedColorHex,
           name: detectedName,
           pattern: detectedPattern
         });
@@ -688,15 +749,28 @@ export default function App() {
         id: `custom-${Date.now()}`,
         name: detectedName || 'Custom Extracted Piece',
         category: detectedCategory,
+        subCategory: detectedSubCategory,
+        colorName: detectedColorName,
+        pattern: detectedPattern,
+        material: detectedMaterial,
+        occasion: detectedOccasions,
+        season: detectedSeasons,
+        style: detectedStyle,
         price: 110,
         discountPrice: null,
         rating: 5.0,
         reviewsCount: 1,
-        description: 'Authentic 3D garment extracted from photo and fitted to female avatar.',
-        details: ['Background & Person Removed', 'Auto-Rigged & Skeleton-Bound', 'High-Res PBR Textures'],
+        description: `Authentic ${detectedMaterial} ${detectedName} (${detectedPattern} pattern, suited for ${detectedOccasions.join(', ')}).`,
+        details: [
+          'Background & Person Removed',
+          'Auto-Rigged & Skeleton-Bound',
+          `Fabric: ${detectedMaterial}`,
+          `Occasions: ${detectedOccasions.join(', ')}`,
+          `Season: ${detectedSeasons.join(', ')}`,
+        ],
         sizes: ['XS', 'S', 'M', 'L'],
-        colors: [{ name: 'Custom Hue', hex: detectedColor }],
-        primaryColor: detectedColor,
+        colors: [{ name: detectedColorName, hex: detectedColorHex }],
+        primaryColor: detectedColorHex,
         brand: 'My Closet',
         inStock: true,
         stockCount: 1,
@@ -719,7 +793,7 @@ export default function App() {
       setSelectedProduct(readyItem);
       setUploadedClothes((prev) => [readyItem, ...prev]);
 
-      // Save to MongoDB Atlas
+      // Save to MongoDB Atlas with complete RAG tags and attributes
       setUploadStatus('Saving to MongoDB Atlas…');
       try {
         const token = authToken || (await ensureAuth());
@@ -730,15 +804,23 @@ export default function App() {
           }
 
           const savedBackendItem = await addClothingItem(token, {
-            name:        readyItem.name,
-            category:    detectedCategory,
-            color:       detectedColor,
-            brand:       'My Closet',
-            description: readyItem.description,
-            size:        'M',
-            tags:        detectedTags,
-            imageUrl:    extractionModal.extractedImage || displayImg,
-            model3d:     readyItem.model3d || undefined
+            name:            readyItem.name,
+            category:        backendCategory,
+            subCategory:     detectedSubCategory,
+            color:           detectedColorName,
+            primaryColor:    detectedColorHex,
+            secondaryColors: [],
+            pattern:         detectedPattern,
+            material:        detectedMaterial,
+            season:          detectedSeasons,
+            occasion:        detectedOccasions,
+            style:           detectedStyle,
+            brand:           'My Closet',
+            description:     readyItem.description,
+            size:            'M',
+            tags:            detectedTags,
+            imageUrl:        extractionModal.extractedImage || displayImg,
+            model3d:         readyItem.model3d || undefined
           });
 
           if (savedBackendItem?.backendId) {

@@ -178,7 +178,7 @@ export function mapBackendCategory(backendCat) {
  */
 function backendItemToProduct(item) {
   const category = mapBackendCategory(item.category);
-  const color    = resolveHexColor(item.color);
+  const color    = item.primaryColor || resolveHexColor(item.color);
 
   const garmentTypeMap = {
     tops:        'top',
@@ -194,12 +194,19 @@ function backendItemToProduct(item) {
     backendId:     item._id,
     name:          item.name || 'My Clothing',
     category,
+    subCategory:   item.subCategory || item.category,
+    pattern:       item.pattern || '',
+    material:      item.material || '',
+    season:        item.season || [],
+    occasion:      item.occasion || [],
+    style:         item.style || [],
+    colorName:     item.color || 'Custom',
     price:         item.price || 100,
     discountPrice: null,
     rating:        4.5,
     reviewsCount:  0,
     description:   item.description || 'Your wardrobe item.',
-    details:       ['Personal Wardrobe Item', 'Virtual Try-On Ready'],
+    details:       ['Personal Wardrobe Item', 'Virtual Try-On Ready', `Fabric: ${item.material || 'Standard'}`, `Pattern: ${item.pattern || 'Plain'}`],
     sizes:         item.size ? [item.size] : ['S', 'M', 'L'],
     colors:        [{ name: item.color || 'Custom', hex: color }],
     primaryColor:  color,
@@ -209,7 +216,7 @@ function backendItemToProduct(item) {
     featured:      false,
     tags:          item.tags || [],
     garmentType:   garmentTypeMap[category] || 'top',
-    silhouette:    'custom',
+    silhouette:    item.subCategory || 'custom',
     position3D:    [0, 2.0, -1.8],
     complementaryIds: [],
     image:         item.imageUrl
@@ -271,9 +278,35 @@ export async function getWardrobe(token) {
  * Add a new clothing item to the backend wardrobe.
  * Returns the created item's ID and the mapped frontend product.
  */
-export async function addClothingItem(token, { name, category, color, brand, description, size, tags, imageUrl, model3d }) {
+export async function addClothingItem(token, {
+  name,
+  category,
+  subCategory,
+  color,
+  primaryColor,
+  secondaryColors,
+  pattern,
+  material,
+  season,
+  occasion,
+  style,
+  brand,
+  description,
+  size,
+  tags,
+  imageUrl,
+  model3d
+}) {
   let authToken = token || (await ensureAuth());
   if (!authToken) throw new Error('Not logged in and could not auto-authenticate');
+
+  const validBackendCategories = [
+    'Shirt', 'T-Shirt', 'Top', 'Crop Top', 'Jeans', 'Trousers', 'Bottom', 'Pants',
+    'Jacket', 'Coat', 'Blazer', 'Overcoat', 'Cardigan', 'Sweater', 'Dress', 'Frock',
+    'Skirt', 'Shoes', 'Sneakers', 'Heels', 'Boots', 'Sandals', 'Loafers',
+    'Accessories', 'Bag', 'Jewelry', 'Ethnic', 'Traditional', 'Saree', 'Kurti',
+    'Anarkali', 'Lehenga', 'Suit', 'Other'
+  ];
 
   // Map frontend category to backend category
   const backendCatMap = {
@@ -285,15 +318,30 @@ export async function addClothingItem(token, { name, category, color, brand, des
     accessories: 'Accessories'
   };
 
+  let resolvedCategory = 'Other';
+  if (category && validBackendCategories.some((c) => c.toLowerCase() === category.toLowerCase())) {
+    resolvedCategory = validBackendCategories.find((c) => c.toLowerCase() === category.toLowerCase());
+  } else if (category && backendCatMap[category.toLowerCase()]) {
+    resolvedCategory = backendCatMap[category.toLowerCase()];
+  }
+
   const payload = {
-    name:        name || 'Uploaded Garment',
-    category:    backendCatMap[category] || 'Other',
-    color:       color || '#9e7bb5',
-    brand:       brand || 'My Closet',
-    description: description || 'Uploaded from WardrobeWise virtual room.',
-    size:        size || 'M',
-    tags:        tags || [],
-    price:       110
+    name:            name || 'Uploaded Garment',
+    category:        resolvedCategory,
+    subCategory:     subCategory || undefined,
+    color:           color || 'Custom',
+    primaryColor:    primaryColor || resolveHexColor(color),
+    secondaryColors: Array.isArray(secondaryColors) ? secondaryColors : [],
+    pattern:         pattern || undefined,
+    material:        material || undefined,
+    season:          Array.isArray(season) ? season : (season ? [season] : []),
+    occasion:        Array.isArray(occasion) ? occasion : (occasion ? [occasion] : []),
+    style:           Array.isArray(style) ? style : (style ? [style] : []),
+    brand:           brand || 'My Closet',
+    description:     description || 'Uploaded from WardrobeWise virtual room.',
+    size:            size || 'M',
+    tags:            tags || [],
+    price:           110
   };
   if (imageUrl) payload.imageUrl = imageUrl;
   if (model3d) payload.model3d = model3d;
