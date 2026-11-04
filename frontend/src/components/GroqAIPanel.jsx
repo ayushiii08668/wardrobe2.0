@@ -140,65 +140,7 @@ export default function GroqAIPanel({
       if (!data) {
         throw new Error('Analysis could not inspect the garment.');
       }
-      const raw = data.data || data;
-
-      // Extract accurate normalized attributes
-      const cat = raw.category || 'Dress';
-      const colorName = raw.colour?.dominant || raw.color || 'Pink';
-      const colorHex = raw.colour?.dominant_hex || raw.colorHex || raw.primaryColor || '#ec4899';
-      const secondaryColor = raw.colour?.secondary || null;
-      const pattern = raw.pattern || (raw.patterns?.[0]) || 'Floral';
-      const occasions = Array.isArray(raw.recommended_occasions) && raw.recommended_occasions.length > 0
-        ? raw.recommended_occasions
-        : (Array.isArray(raw.occasions) && raw.occasions.length > 0 ? raw.occasions : ['Party', 'Wedding', 'Casual outing']);
-      const seasons = Array.isArray(raw.recommended_seasons) && raw.recommended_seasons.length > 0
-        ? raw.recommended_seasons
-        : (Array.isArray(raw.seasons) && raw.seasons.length > 0 ? raw.seasons : ['Summer', 'Spring']);
-      const material = raw.material || raw.fabric || (cat.toLowerCase().includes('dress') ? 'Silk & Chiffon' : 'Cotton');
-
-      // Cross-reference with user's uploaded wardrobe items (mongoClothes)
-      const matchedWardrobeItem = (mongoClothes || []).find((item) => {
-        const iName = (item.name || '').toLowerCase();
-        const iCat = (item.category || '').toLowerCase();
-        const iColor = (typeof item.color === 'string' ? item.color : item.color?.primary || '').toLowerCase();
-        const iImg = (item.imageUrl || item.image || '').toLowerCase();
-
-        if (imageFile?.name && iImg.includes(imageFile.name.toLowerCase())) return true;
-        if (iCat === cat.toLowerCase() && (iColor.includes(colorName.toLowerCase()) || iName.includes(colorName.toLowerCase()))) return true;
-        if (pattern && pattern.toLowerCase() !== 'plain' && iName.includes(pattern.toLowerCase()) && iCat === cat.toLowerCase()) return true;
-        return false;
-      });
-
-      const finalName = matchedWardrobeItem
-        ? matchedWardrobeItem.name
-        : `${colorName} ${pattern && pattern !== 'Plain' && pattern !== 'Unknown' ? pattern + ' ' : ''}${cat}`;
-
-      const finalOccasions = matchedWardrobeItem?.occasion && matchedWardrobeItem.occasion.length > 0
-        ? matchedWardrobeItem.occasion
-        : occasions;
-
-      const finalSeasons = matchedWardrobeItem?.season && matchedWardrobeItem.season.length > 0
-        ? matchedWardrobeItem.season
-        : seasons;
-
-      const finalFabric = matchedWardrobeItem?.fabric || material;
-
-      setAnalysis({
-        ...raw,
-        name: finalName,
-        category: matchedWardrobeItem?.category || cat,
-        subCategory: matchedWardrobeItem?.subCategory || raw.category_group || cat,
-        color: colorName,
-        colorHex,
-        secondaryColor,
-        pattern: matchedWardrobeItem?.pattern || pattern,
-        occasions: finalOccasions,
-        seasons: finalSeasons,
-        material: finalFabric,
-        confidence: raw.confidence || 0.92,
-        isWardrobeItem: !!matchedWardrobeItem,
-        matchedWardrobeItem: matchedWardrobeItem || null
-      });
+      setAnalysis(data.data || data);
     } catch (err) {
       setError(err.message || 'Image analysis failed.');
     } finally {
@@ -215,14 +157,14 @@ export default function GroqAIPanel({
     else if (cat.includes('jacket') || cat.includes('coat') || cat.includes('blazer') || cat.includes('outerwear')) categoryKey = 'outerwear';
     else if (cat.includes('shoe') || cat.includes('boot') || cat.includes('sneaker') || cat.includes('heel') || cat.includes('footwear')) categoryKey = 'shoes';
 
-    const hex = analysis.colorHex || analysis.colour?.dominant_hex || analysis.color_dominant?.hex || analysis.primaryColor || '#ec4899';
+    const hex = analysis.colour?.dominant_hex || analysis.color_dominant?.hex || analysis.primaryColor || '#dc2626';
 
     const scannedPiece = {
-      id: analysis.matchedWardrobeItem?._id || analysis.matchedWardrobeItem?.id || `scanned-${Date.now()}`,
-      name: analysis.name || `${analysis.color || 'Custom'} ${analysis.category || 'Garment'}`,
+      id: `scanned-${Date.now()}`,
+      name: `${analysis.colour?.dominant || analysis.color || 'Custom'} ${analysis.category || 'Garment'}`,
       category: categoryKey,
       primaryColor: hex,
-      colors: [{ name: analysis.color || 'Detected', hex }],
+      colors: [{ name: analysis.colour?.dominant || 'Detected', hex }],
       image: imagePreview || null,
       garmentType: categoryKey === 'dresses' ? 'dress' : categoryKey === 'trousers' ? 'bottom' : categoryKey === 'shoes' ? 'shoes' : 'top',
       silhouette: categoryKey === 'dresses' ? 'slip-dress' : 'custom'
@@ -266,21 +208,12 @@ export default function GroqAIPanel({
   };
 
   const handleSearchSimilarInWardrobe = async () => {
-    if (!imageFile && !analysis) return;
+    if (!imageFile) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await searchClothingByImage(imageFile, analysis || {});
+      const data = await searchClothingByImage(imageFile);
       if (data && data.success) {
-        if (analysis?.matchedWardrobeItem) {
-          const item = analysis.matchedWardrobeItem;
-          const exists = (data.exactMatches || []).some(m => (m._id || m.id) === (item._id || item.id));
-          if (!exists) {
-            data.exactMatches = [item, ...(data.exactMatches || [])];
-          }
-          data.notFound = false;
-          data.message = `Found exact match in your personal wardrobe: ${item.name}`;
-        }
         setRagResult(data);
         setTab('recommend');
       } else {
@@ -503,32 +436,16 @@ export default function GroqAIPanel({
                   <h2
                     style={{
                       margin: 0,
-                      fontSize: '15px',
+                      fontSize: '16px',
                       fontWeight: 800,
                       background: 'linear-gradient(90deg,#c4b5fd,#f9a8d4)',
                       WebkitBackgroundClip: 'text',
                       WebkitTextFillColor: 'transparent'
                     }}
                   >
-                    VR-RAG AI Fashion Stylist
+                    StyleFusion
                   </h2>
-                  <span
-                    style={{
-                      fontSize: '9.5px',
-                      padding: '2px 6px',
-                      borderRadius: '999px',
-                      background: 'rgba(16,185,129,0.2)',
-                      color: '#6ee7b7',
-                      border: '1px solid rgba(16,185,129,0.3)',
-                      fontWeight: 700
-                    }}
-                  >
-                    MongoDB RAG
-                  </span>
                 </div>
-                <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#9d84bf' }}>
-                  Retrieval-Augmented Generation • Groq LLaMA-3
-                </p>
               </div>
             </div>
 
@@ -551,7 +468,7 @@ export default function GroqAIPanel({
           {/* Navigation Tabs */}
           <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
             {[
-              { id: 'recommend', label: '✨ RAG Outfit Stylist', icon: Sparkles },
+              { id: 'recommend', label: '✨ Outfit Stylist', icon: Sparkles },
               { id: 'scan', label: '📸 Cloth AI Vision Scanner', icon: Camera }
             ].map((t) => (
               <button
@@ -608,7 +525,7 @@ export default function GroqAIPanel({
                     marginBottom: '6px'
                   }}
                 >
-                  Ask Your RAG AI Stylist
+                  Ask Your AI Stylist
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
@@ -860,7 +777,7 @@ export default function GroqAIPanel({
                     }}
                   />
                   <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: '#c4b5fd' }}>
-                    Executing RAG Pipeline…
+                    Generating Outfits…
                   </p>
                   <p style={{ margin: 0, fontSize: '11px', color: '#8b6fb5' }}>
                     Retrieving MongoDB wardrobe → Disambiguating categories → Generating looks
@@ -922,10 +839,10 @@ export default function GroqAIPanel({
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
                           <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#f472b6' }}>
-                            ✨ AI Fashion Stylist
+                            ✨ StyleFusion
                           </span>
                           <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '999px', background: 'rgba(139,92,246,0.3)', color: '#c4b5fd', fontWeight: 700 }}>
-                            {ragResult.generationSource ? 'Groq LLaMA-3' : 'RAG Engine'}
+                            {ragResult.generationSource ? 'Groq LLaMA-3' : 'AI Engine'}
                           </span>
                         </div>
                         <p style={{ margin: 0, fontSize: '12.5px', color: '#f8fafc', lineHeight: 1.45 }}>
@@ -1440,27 +1357,7 @@ export default function GroqAIPanel({
                 </div>
               )}
 
-              {/* Idle Informational Box */}
-              {!ragResult && !recLoading && !recError && (
-                <div
-                  style={{
-                    background: 'rgba(139,92,246,0.06)',
-                    borderRadius: '14px',
-                    padding: '16px',
-                    border: '1px solid rgba(139,92,246,0.15)'
-                  }}
-                >
-                  <p style={{ margin: '0 0 8px', fontSize: '12px', fontWeight: 800, color: '#c4b5fd' }}>
-                    🔍 How RAG Wardrobe AI Works:
-                  </p>
-                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '11.5px', color: '#9d84bf', lineHeight: 1.6 }}>
-                    <li><strong>1. Retrieves:</strong> Real clothes from your MongoDB Atlas database.</li>
-                    <li><strong>2. Augments:</strong> Fashion color harmony, weather rules, and unworn items.</li>
-                    <li><strong>3. Generates:</strong> Exact outfit combinations with zero hallucination.</li>
-                    <li><strong>4. VR Sync:</strong> Immediately dresses the photorealistic female avatar in 3D!</li>
-                  </ul>
-                </div>
-              )}
+
             </div>
           )}
 
@@ -1625,207 +1522,18 @@ export default function GroqAIPanel({
               )}
 
               {analysis && (
-                <div
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    border: '1px solid rgba(139, 92, 246, 0.25)',
-                    borderRadius: '14px',
-                    padding: '16px',
-                    marginTop: '12px'
-                  }}
-                >
-                  {/* Wardrobe Match Status Badge */}
-                  {analysis.isWardrobeItem ? (
-                    <div
-                      style={{
-                        background: 'rgba(16, 185, 129, 0.15)',
-                        border: '1px solid rgba(16, 185, 129, 0.35)',
-                        borderRadius: '8px',
-                        padding: '6px 10px',
-                        marginBottom: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <CheckCircle size={14} style={{ color: '#34d399' }} />
-                      <span style={{ fontSize: '11px', color: '#6ee7b7', fontWeight: 700 }}>
-                        ✓ Identified In Your Personal Wardrobe
-                      </span>
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        background: 'rgba(139, 92, 246, 0.12)',
-                        border: '1px solid rgba(139, 92, 246, 0.25)',
-                        borderRadius: '8px',
-                        padding: '6px 10px',
-                        marginBottom: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <Sparkles size={14} style={{ color: '#c4b5fd' }} />
-                      <span style={{ fontSize: '11px', color: '#ddd6fe', fontWeight: 600 }}>
-                        AI Vision Feature Breakdown
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Garment Title */}
-                  <div style={{ marginBottom: '14px' }}>
-                    <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#a78bfa', fontWeight: 700 }}>
-                      Item Name
+                <div>
+                  <Section title="Detected Category" icon={Tag}>
+                    <span style={{ fontSize: '18px', fontWeight: 800, color: 'white' }}>
+                      {analysis.category || 'Clothing Item'}
                     </span>
-                    <h3 style={{ margin: '3px 0 0', fontSize: '15px', fontWeight: 800, color: '#ffffff', lineHeight: 1.3 }}>
-                      {analysis.name || `${analysis.color} ${analysis.category}`}
-                    </h3>
-                  </div>
+                  </Section>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                    {/* Category */}
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
-                        <Tag size={12} style={{ color: '#a78bfa' }} />
-                        <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: '#c4b5fd' }}>
-                          Category
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '13px', fontWeight: 700, color: 'white' }}>
-                        {analysis.category || 'Dress'}
-                      </span>
-                    </div>
-
-                    {/* Dominant Color */}
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
-                        <Palette size={12} style={{ color: '#a78bfa' }} />
-                        <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: '#c4b5fd' }}>
-                          Dominant Color
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span
-                          style={{
-                            width: '12px',
-                            height: '12px',
-                            borderRadius: '50%',
-                            background: analysis.colorHex || '#ec4899',
-                            border: '1px solid rgba(255,255,255,0.4)',
-                            display: 'inline-block'
-                          }}
-                        />
-                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'white' }}>
-                          {analysis.color || 'Pink'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Pattern / Print */}
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
-                        <Grid size={12} style={{ color: '#a78bfa' }} />
-                        <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: '#c4b5fd' }}>
-                          Print / Pattern
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '13px', fontWeight: 700, color: 'white' }}>
-                        {analysis.pattern || 'Floral'}
-                      </span>
-                    </div>
-
-                    {/* Fabric / Material */}
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
-                        <Leaf size={12} style={{ color: '#a78bfa' }} />
-                        <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: '#c4b5fd' }}>
-                          Fabric / Material
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '13px', fontWeight: 700, color: 'white' }}>
-                        {analysis.material || 'Silk & Chiffon'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Suitable Occasions */}
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
-                      <Calendar size={12} style={{ color: '#a78bfa' }} />
-                      <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: '#c4b5fd' }}>
-                        Suitable Occasions
-                      </span>
-                    </div>
-                    <div>
-                      {(analysis.occasions || ['Party', 'Wedding', 'Casual outing']).map((occ, i) => (
-                        <Badge key={i} color={i % 2 === 0 ? 'purple' : 'pink'}>
-                          {occ}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Suitable Seasons */}
-                  <div style={{ marginBottom: '14px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
-                      <Sun size={12} style={{ color: '#a78bfa' }} />
-                      <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: '#c4b5fd' }}>
-                        Suitable Seasons
-                      </span>
-                    </div>
-                    <div>
-                      {(analysis.seasons || ['Summer', 'Spring', 'Winter']).map((seas, i) => (
-                        <Badge key={i} color="amber">
-                          {seas}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Actions: Try on avatar & Search in Wardrobe */}
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
-                    <button
-                      onClick={handleWearScannedItem}
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        borderRadius: '9px',
-                        background: 'linear-gradient(135deg,#7c3aed,#ec4899)',
-                        border: 'none',
-                        color: 'white',
-                        fontWeight: 700,
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <Sparkles size={14} /> Try On Avatar (3D)
-                    </button>
-                    <button
-                      onClick={handleSearchSimilarInWardrobe}
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        borderRadius: '9px',
-                        background: 'linear-gradient(135deg,#059669,#10b981)',
-                        border: 'none',
-                        color: 'white',
-                        fontWeight: 700,
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <Compass size={14} /> Search In Wardrobe
-                    </button>
-                  </div>
+                  <Section title="Color Detection" icon={Palette}>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#c4b5fd' }}>
+                      Primary: {analysis.color?.primary || analysis.color || 'Detected Color'}
+                    </p>
+                  </Section>
                 </div>
               )}
             </div>

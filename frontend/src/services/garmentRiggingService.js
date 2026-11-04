@@ -10,9 +10,9 @@ const modelCache = new Map();
  */
 const ANATOMY_TARGETS = {
   dress: {
-    targetHeight: 0.83, // from knees (0.63) to collarbone (1.46)
-    targetWidth: 0.38,  // across shoulders/bust
-    targetDepth: 0.32,  // chest to back
+    targetHeight: 0.84, // from knees (0.63) to collarbone (1.47)
+    targetWidth: 0.52,  // wider across hips, waist, bust and shoulders to fully fit female avatar
+    targetDepth: 0.38,  // chest to back
     targetCenterY: 1.045, // (1.46 + 0.63) / 2
     targetCenterZ: 0.035,
   },
@@ -189,7 +189,8 @@ export async function loadAndRigGlbGarment(
   avatarSkeleton,
   bindMatrix,
   category = 'dress',
-  fallbackMaterial = null
+  fallbackMaterial = null,
+  scaleConfig = null
 ) {
   if (!glbUrl) throw new Error('No GLB URL provided');
 
@@ -212,10 +213,23 @@ export async function loadAndRigGlbGarment(
     throw new Error('No mesh found inside GLB file');
   }
 
+  // Determine scaling factors to ensure the garment fits the avatar body with full coverage
+  const isFloral = glbUrl.includes('floral');
+  const isEthnic = glbUrl.includes('saree') || glbUrl.includes('ethnic');
+  const defaultScaleX = isEthnic ? 1.05 : isFloral ? 1.02 : 1.06;
+  const defaultScaleY = 1.00;
+  const defaultScaleZ = isEthnic ? 1.05 : isFloral ? 1.02 : 1.06;
+
+  const sx = scaleConfig?.scaleX ?? (category === 'dress' ? defaultScaleX : 1.025);
+  const sy = scaleConfig?.scaleY ?? (category === 'dress' ? defaultScaleY : 1.005);
+  const sz = scaleConfig?.scaleZ ?? (category === 'dress' ? defaultScaleZ : 1.025);
+
   // If already rigged with existing bone weights (e.g. authentic garment GLB), use directly as a SkinnedMesh
   if (extractedMesh.geometry?.attributes?.skinIndex) {
+    const geom = extractedMesh.geometry.clone();
+    geom.scale(sx, sy, sz);
     const skinnedMesh = new THREE.SkinnedMesh(
-      extractedMesh.geometry.clone(),
+      geom,
       fallbackMaterial || extractedMesh.material
     );
     skinnedMesh.bind(avatarSkeleton, bindMatrix);

@@ -9,11 +9,14 @@ export default function ClothingDisplays({
   onSelectProduct,
   activeCategory = 'all'
 }) {
-  // Filter products if a specific category is chosen (or show all if 'all')
+  // Filter products if a specific category is chosen (exclude shoe products from 3D room floor)
   const displayedProducts = React.useMemo(() => {
-    if (!activeCategory || activeCategory === 'all') return PRODUCTS;
+    const nonShoeProducts = PRODUCTS.filter(
+      (p) => p.category !== 'shoes' && p.silhouette !== 'sneakers' && p.silhouette !== 'stilettos' && p.silhouette !== 'sandals'
+    );
+    if (!activeCategory || activeCategory === 'all') return nonShoeProducts;
     const cat = activeCategory.toLowerCase();
-    return PRODUCTS.filter((p) => {
+    return nonShoeProducts.filter((p) => {
       const pCat = p.category.toLowerCase();
       if (cat === 'trousers') return pCat === 'trousers' || pCat === 'skirts' || pCat === 'bottom';
       if (cat === 'outerwear') return pCat === 'outerwear' || pCat === 'jacket' || pCat === 'coat';

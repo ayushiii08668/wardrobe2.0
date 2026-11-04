@@ -200,9 +200,10 @@ export default function Garment3D({
 
   const primaryCol = product.primaryColor || '#ffffff';
 
-  // If shoe product, render high-fidelity 3D sneaker model
-  const isShoe = product.category === 'shoes' || product.silhouette === 'sneakers';
-  const shoeGltf = isShoe ? useGLTF('/models/shoe_luxury.glb') : null;
+  // If shoe product, do not render in 3D boutique room scene
+  const isShoe = product.category === 'shoes' || product.silhouette === 'sneakers' || product.silhouette === 'stilettos' || product.silhouette === 'sandals';
+  if (isShoe) return null;
+  const shoeGltf = null;
 
   return (
     <group

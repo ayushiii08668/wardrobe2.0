@@ -31,9 +31,9 @@ import { loadAndRigGlbGarment, fitAndRigStaticGarment } from '../services/garmen
 
 // ─── Fabric PBR Param Resolver ───────────────────────────────────────────────
 function getFabricParams(garmentItem) {
-  const cat = (garmentItem?.category || '').toLowerCase();
-  const sil = (garmentItem?.silhouette || '').toLowerCase();
-  const name = (garmentItem?.name || '').toLowerCase();
+  const cat  = (garmentItem?.category   || '').toLowerCase();
+  const sil  = (garmentItem?.silhouette || '').toLowerCase();
+  const name = (garmentItem?.name       || '').toLowerCase();
 
   if (cat === 'trousers' || sil.includes('jean') || name.includes('jean') || name.includes('denim')) {
     return { roughness: 0.76, metalness: 0.02, clearcoat: 0.0, clearcoatRoughness: 0.1 };
@@ -57,11 +57,11 @@ function getFabricParams(garmentItem) {
 }
 
 const COLOR_NAMES = {
-  white: '#f8f9fa', black: '#1c1c1f', navy: '#1b2a4a', beige: '#d8cdbf',
-  camel: '#bca182', grey: '#4b5563', gray: '#4b5563', blue: '#2563eb',
-  emerald: '#1b4d3e', green: '#15803d', red: '#dc2626', pink: '#e5779c',
-  purple: '#7c3aed', brown: '#5c3a21', yellow: '#f59e0b', charcoal: '#2d3748',
-  ivory: '#fffff0', cream: '#fffdd0',
+  white:'#f8f9fa', black:'#1c1c1f', navy:'#1b2a4a', beige:'#d8cdbf',
+  camel:'#bca182', grey:'#4b5563',  gray:'#4b5563',  blue:'#2563eb',
+  emerald:'#1b4d3e', green:'#15803d', red:'#dc2626', pink:'#e5779c',
+  purple:'#7c3aed', brown:'#5c3a21', yellow:'#f59e0b', charcoal:'#2d3748',
+  ivory:'#fffff0', cream:'#fffdd0',
 };
 
 function resolveColor(raw) {
@@ -97,6 +97,9 @@ function buildGarmentMaterial(garmentItem, origMat) {
     existingMat.transparent = true;
     existingMat.alphaTest = 0.5;
     existingMat.depthWrite = true;
+    existingMat.polygonOffset = true;
+    existingMat.polygonOffsetFactor = -1.5;
+    existingMat.polygonOffsetUnits = -1.5;
     existingMat.side = THREE.DoubleSide;
     existingMat.needsUpdate = true;
     return existingMat;
@@ -104,8 +107,8 @@ function buildGarmentMaterial(garmentItem, origMat) {
 
   const { roughness, metalness, clearcoat, clearcoatRoughness } = getFabricParams(garmentItem);
   const rawColor = garmentItem?.primaryColor ||
-    garmentItem?.color ||
-    garmentItem?.colors?.[0]?.hex || '#ffffff';
+                   garmentItem?.color ||
+                   garmentItem?.colors?.[0]?.hex || '#ffffff';
   const color = resolveColor(rawColor);
 
   const itemId = (garmentItem?.id || '').toLowerCase();
@@ -126,6 +129,9 @@ function buildGarmentMaterial(garmentItem, origMat) {
     clearcoat,
     clearcoatRoughness,
     side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -1.5,
+    polygonOffsetUnits: -1.5,
   };
 
   // If this is the floral puff dress, use the cleaned floral texture with normal and roughness maps
@@ -139,7 +145,7 @@ function buildGarmentMaterial(garmentItem, origMat) {
   }
 
   const hasRealImage = imageSrc && typeof imageSrc === 'string' &&
-    (imageSrc.startsWith('http') || imageSrc.startsWith('blob:') || imageSrc.startsWith('/') || imageSrc.startsWith('data:'));
+                       (imageSrc.startsWith('http') || imageSrc.startsWith('blob:') || imageSrc.startsWith('/') || imageSrc.startsWith('data:'));
 
   if (hasRealImage) {
     try {
@@ -159,92 +165,6 @@ function buildGarmentMaterial(garmentItem, origMat) {
   }
 
   return new THREE.MeshPhysicalMaterial(params);
-}
-
-/**
- * Partitions a SkinnedMesh's geometry index into two groups:
- * Group 0 (torso / hips): wrapped with dress cloth (dressWrapMat) so side body gaps match the dress
- * Group 1 (limbs: arms / legs): rendered with authentic bare skin (skinMat)
- */
-function partitionMeshGeometryForDress(mesh, type) {
-  if (!mesh?.geometry?.index || !mesh.geometry.attributes.skinIndex || !mesh.geometry.attributes.skinWeight) {
-    return;
-  }
-  const geom = mesh.geometry;
-  if (geom.userData?.partitionedForDress) {
-    return;
-  }
-
-  const indices = geom.index.array;
-  const skinIndices = geom.attributes.skinIndex;
-  const skinWeights = geom.attributes.skinWeight;
-  const bones = mesh.skeleton?.bones || [];
-
-  const isLimbVert = (vIdx) => {
-    let limbWeight = 0;
-    let bodyWeight = 0;
-    for (let j = 0; j < 4; j++) {
-      const w = skinWeights.getComponent(vIdx, j);
-      const bIdx = skinIndices.getComponent(vIdx, j);
-      const bName = bones[bIdx]?.name || '';
-      if (type === 'top') {
-        if (bName.includes('Arm') || bName.includes('Hand') || bName.includes('ForeArm')) {
-          limbWeight += w;
-        } else {
-          bodyWeight += w;
-        }
-      } else {
-        if (bName.includes('Leg') || bName.includes('Foot') || bName.includes('Toe')) {
-          limbWeight += w;
-        } else {
-          bodyWeight += w;
-        }
-      }
-    }
-    return limbWeight > bodyWeight;
-  };
-
-  const bodyIndices = [];
-  const limbIndices = [];
-
-  for (let i = 0; i < indices.length; i += 3) {
-    const i0 = indices[i];
-    const i1 = indices[i + 1];
-    const i2 = indices[i + 2];
-    const l0 = isLimbVert(i0);
-    const l1 = isLimbVert(i1);
-    const l2 = isLimbVert(i2);
-    const limbCount = (l0 ? 1 : 0) + (l1 ? 1 : 0) + (l2 ? 1 : 0);
-    if (limbCount >= 2) {
-      limbIndices.push(i0, i1, i2);
-    } else {
-      bodyIndices.push(i0, i1, i2);
-    }
-  }
-
-  if (!geom.userData.originalIndex) {
-    geom.userData.originalIndex = geom.index.clone();
-  }
-
-  const newIndices = new indices.constructor(indices.length);
-  newIndices.set(bodyIndices, 0);
-  newIndices.set(limbIndices, bodyIndices.length);
-
-  geom.setIndex(new THREE.BufferAttribute(newIndices, 1));
-  geom.clearGroups();
-  geom.addGroup(0, bodyIndices.length, 0); // Material 0: dress cloth
-  geom.addGroup(bodyIndices.length, limbIndices.length, 1); // Material 1: bare skin
-  geom.userData.partitionedForDress = true;
-}
-
-function restoreMeshGeometryFromDress(mesh) {
-  if (!mesh?.geometry?.userData?.partitionedForDress) return;
-  const geom = mesh.geometry;
-  if (geom.userData.originalIndex) {
-    geom.setIndex(geom.userData.originalIndex.clone());
-  }
-  geom.clearGroups();
-  geom.userData.partitionedForDress = false;
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
@@ -297,6 +217,21 @@ export default function Avatar3D({
     eyes: [], glasses: null, bones: {}, restQuaternions: {}, restPositions: {},
     origTopMat: null, origBottomMat: null, origShoesMat: null,
   });
+
+  // Natural bare skin material to display avatar body parts (arms, neck, legs)
+  // without any internal clothing (default t-shirt & gym leggings)
+  const skinMat = useMemo(() => {
+    const skinColor = personalizedProfile?.skinColor || '#d9997d';
+    return new THREE.MeshStandardMaterial({
+      color: new THREE.Color(skinColor),
+      roughness: 0.60,
+      metalness: 0.0,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: 1.0,
+      polygonOffsetUnits: 1.0,
+    });
+  }, [personalizedProfile?.skinColor]);
 
   // Clone avatar scene safely with SkeletonUtils and capture native rest quaternions & positions
   const avatarScene = useMemo(() => {
@@ -497,6 +432,10 @@ export default function Avatar3D({
           body.material.roughness = 0.58;
           body.material.needsUpdate = true;
         }
+        if (skinMat) {
+          skinMat.color.copy(skinCol);
+          skinMat.needsUpdate = true;
+        }
       }
       if (head?.morphTargetDictionary && head?.morphTargetInfluences && personalizedProfile.morphTargets) {
         const dict = head.morphTargetDictionary;
@@ -522,8 +461,12 @@ export default function Avatar3D({
         body.material.color = defaultSkin;
         body.material.needsUpdate = true;
       }
+      if (skinMat) {
+        skinMat.color.set('#d9997d');
+        skinMat.needsUpdate = true;
+      }
     }
-  }, [mode, personalizedProfile, avatarScene]);
+  }, [mode, personalizedProfile, avatarScene, skinMat]);
 
   // ── Outfit Application & Auto-Rigging Engine (Replacement-Based Try-On) ──
   useEffect(() => {
@@ -595,65 +538,16 @@ export default function Avatar3D({
       }
 
       const dressMat = buildGarmentMaterial(dressItem, origTopMat);
-      dressMat.polygonOffset = true;
-      dressMat.polygonOffsetFactor = -1;
-      dressMat.polygonOffsetUnits = -2;
-
-      // Helper: Wrap side body under dress in the SAME DRESS CLOTH,
-      // while keeping natural arms, hands, and legs visible as authentic bare skin
-      const applyDressWrappingAndLimbs = () => {
-        const skinColor = personalizedProfile?.skinColor
-          ? new THREE.Color(personalizedProfile.skinColor)
-          : (meshesRef.current.body?.material?.color
-              ? meshesRef.current.body.material.color.clone()
-              : new THREE.Color('#ffffff'));
-
-        const skinMat = meshesRef.current.body?.material
-          ? meshesRef.current.body.material.clone()
-          : new THREE.MeshPhysicalMaterial({
-              roughness: 0.58,
-              metalness: 0.0,
-              envMapIntensity: 1.0,
-            });
-
-        skinMat.color = skinColor;
-        skinMat.roughness = 0.58;
-        skinMat.metalness = 0.0;
-        skinMat.side = THREE.DoubleSide;
-        skinMat.needsUpdate = true;
-
-        // Wrapper material for torso & hips matching the dress cloth exactly
-        const dressWrapMat = dressMat.clone();
-        dressWrapMat.transparent = false;
-        dressWrapMat.alphaTest = 0;
-        dressWrapMat.depthWrite = true;
-        dressWrapMat.side = THREE.DoubleSide;
-        dressWrapMat.polygonOffset = false;
-        dressWrapMat.needsUpdate = true;
-
-        if (top) {
-          partitionMeshGeometryForDress(top, 'top');
-          // Group 0: Torso & side ribs wrapped in dress cloth
-          // Group 1: Bare natural arms (skinMat)
-          top.material = [dressWrapMat, skinMat];
-          top.renderOrder = 1;
-          top.visible = true;
-        }
-        if (bottom) {
-          partitionMeshGeometryForDress(bottom, 'bottom');
-          // Group 0: Waist & hips under dress wrapped in dress cloth
-          // Group 1: Bare natural legs (skinMat)
-          bottom.material = [dressWrapMat, skinMat];
-          bottom.renderOrder = 1;
-          bottom.visible = true;
-        }
-      };
-
       const customGlbUrl = dressItem?.modelUrl || dressItem?.model3d?.modelUrl;
+
+      // Calculate dress scale: the 3D dress geometry now natively wraps 360 degrees around the avatar's torso, waist and hips
+      const scaleX = isIndianEthnic ? 1.05 : isFloralOrPuff ? 1.02 : 1.06;
+      const scaleY = 1.00;
+      const scaleZ = isIndianEthnic ? 1.05 : isFloralOrPuff ? 1.02 : 1.06;
 
       // If a custom cloud-generated GLB URL exists, load and auto-rig it
       if (customGlbUrl && top?.skeleton) {
-        loadAndRigGlbGarment(customGlbUrl, top.skeleton, top.bindMatrix, 'dress', dressMat)
+        loadAndRigGlbGarment(customGlbUrl, top.skeleton, top.bindMatrix, 'dress', dressMat, { scaleX, scaleY, scaleZ })
           .then((riggedMesh) => {
             if (isDisposed || tryOnSeqRef.current !== currentSeq) {
               riggedMesh.geometry?.dispose?.();
@@ -664,50 +558,76 @@ export default function Avatar3D({
             cleanAllAttachedDresses();
             riggedMesh.name = 'Avatar_Active_Dress';
             riggedMesh.userData.isTryOnGarment = true;
-            riggedMesh.renderOrder = 2;
             avatarScene.add(riggedMesh);
             activeDressRef.current = riggedMesh;
 
-            // Keep bare arms/legs visible & wrap side body in same dress cloth
-            applyDressWrappingAndLimbs();
+            // Preserve body parts (arms and legs) as bare natural skin under the dress (no internal clothes)
+            if (top) {
+              top.visible = true;
+              top.material = skinMat;
+              top.material.needsUpdate = true;
+            }
+            if (bottom) {
+              bottom.visible = true;
+              bottom.material = skinMat;
+              bottom.material.needsUpdate = true;
+            }
           })
           .catch((err) => {
             console.warn('[Avatar3D] Could not load custom GLB, using procedural fallback:', err.message);
             if (isDisposed || tryOnSeqRef.current !== currentSeq) return;
             cleanAllAttachedDresses();
             if (targetGeom && top?.skeleton) {
-              const dressSkinnedMesh = new THREE.SkinnedMesh(targetGeom.clone(), dressMat);
+              const geom = targetGeom.clone();
+              geom.scale(scaleX, scaleY, scaleZ);
+              const dressSkinnedMesh = new THREE.SkinnedMesh(geom, dressMat);
               dressSkinnedMesh.name = 'Avatar_Active_Dress';
               dressSkinnedMesh.userData.isTryOnGarment = true;
               dressSkinnedMesh.bind(top.skeleton, top.bindMatrix);
               dressSkinnedMesh.castShadow = true;
               dressSkinnedMesh.receiveShadow = true;
               dressSkinnedMesh.frustumCulled = false;
-              dressSkinnedMesh.renderOrder = 2;
               avatarScene.add(dressSkinnedMesh);
               activeDressRef.current = dressSkinnedMesh;
-
-              // Keep bare arms/legs visible & wrap side body in same dress cloth
-              applyDressWrappingAndLimbs();
+              if (top) {
+                top.visible = true;
+                top.material = skinMat;
+                top.material.needsUpdate = true;
+              }
+              if (bottom) {
+                bottom.visible = true;
+                bottom.material = skinMat;
+                bottom.material.needsUpdate = true;
+              }
             }
           });
       } else if (targetGeom && top?.skeleton) {
         // Direct authentic SkinnedMesh binding
         cleanAllAttachedDresses();
-        const dressSkinnedMesh = new THREE.SkinnedMesh(targetGeom.clone(), dressMat);
+        const geom = targetGeom.clone();
+        geom.scale(scaleX, scaleY, scaleZ);
+        const dressSkinnedMesh = new THREE.SkinnedMesh(geom, dressMat);
         dressSkinnedMesh.name = 'Avatar_Active_Dress';
         dressSkinnedMesh.userData.isTryOnGarment = true;
         dressSkinnedMesh.bind(top.skeleton, top.bindMatrix);
         dressSkinnedMesh.castShadow = true;
         dressSkinnedMesh.receiveShadow = true;
         dressSkinnedMesh.frustumCulled = false;
-        dressSkinnedMesh.renderOrder = 2;
 
         avatarScene.add(dressSkinnedMesh);
         activeDressRef.current = dressSkinnedMesh;
 
-        // Keep bare arms/legs visible & wrap side body in same dress cloth
-        applyDressWrappingAndLimbs();
+        // Preserve body parts (arms and legs) as bare natural skin under the dress (no internal clothes)
+        if (top) {
+          top.visible = true;
+          top.material = skinMat;
+          top.material.needsUpdate = true;
+        }
+        if (bottom) {
+          bottom.visible = true;
+          bottom.material = skinMat;
+          bottom.material.needsUpdate = true;
+        }
       }
     } else {
       // ── SEPARATE PIECES (Tops & Trousers): Ensure any active dress is completely removed ──
@@ -715,22 +635,22 @@ export default function Avatar3D({
 
       // Show separate top and bottom skinned meshes
       if (top) {
-        restoreMeshGeometryFromDress(top);
         if (outfit?.top) {
           top.material = buildGarmentMaterial(outfit.top, origTopMat);
-        } else if (origTopMat) {
-          top.material = origTopMat.clone();
+        } else {
+          // If no top selected, display bare upper body skin without internal clothes
+          top.material = skinMat;
         }
         top.material.needsUpdate = true;
         top.visible = true;
       }
 
       if (bottom) {
-        restoreMeshGeometryFromDress(bottom);
         if (outfit?.bottom) {
           bottom.material = buildGarmentMaterial(outfit.bottom, origBottomMat);
-        } else if (origBottomMat) {
-          bottom.material = origBottomMat.clone();
+        } else {
+          // If no bottom selected, display bare lower body skin without internal clothes
+          bottom.material = skinMat;
         }
         bottom.material.needsUpdate = true;
         bottom.visible = true;
@@ -752,7 +672,7 @@ export default function Avatar3D({
       isDisposed = true;
       tryOnSeqRef.current++;
     };
-  }, [outfit, avatarScene, garmentGeometries]);
+  }, [outfit, avatarScene, garmentGeometries, skinMat]);
 
   // ── Try-On Aura Sparkle ───────────────────────────────────────────────────
   const auraRef = useRef();

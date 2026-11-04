@@ -599,7 +599,7 @@ export default function App() {
   };
 
   // --- Garment Extraction Confirmation: Runs 3D Generation & Virtual Try-On ---
-  const handleConfirmExtraction = async (customDetails = null) => {
+  const handleConfirmExtraction = async () => {
     const file = extractionModal.pendingFile;
     if (!file) return;
 
@@ -609,87 +609,26 @@ export default function App() {
 
     try {
       const geminiData = extractionModal.geminiData;
-
-      // Extract details either from the user questionnaire or fallback to Gemini / file name
-      const backendCategory = customDetails?.category || 'Dress';
-      let detectedCategory = 'tops';
-      const catLow = backendCategory.toLowerCase();
-      if (
-        catLow.includes('dress') ||
-        catLow.includes('frock') ||
-        catLow.includes('saree') ||
-        catLow.includes('kurti') ||
-        catLow.includes('anarkali') ||
-        catLow.includes('lehenga') ||
-        catLow.includes('skirt')
-      ) {
-        detectedCategory = 'dresses';
-      } else if (
-        catLow.includes('trouser') ||
-        catLow.includes('pant') ||
-        catLow.includes('jean') ||
-        catLow.includes('bottom')
-      ) {
-        detectedCategory = 'trousers';
-      } else if (
-        catLow.includes('shoe') ||
-        catLow.includes('sneaker') ||
-        catLow.includes('boot') ||
-        catLow.includes('heel') ||
-        catLow.includes('sandal') ||
-        catLow.includes('loafer')
-      ) {
-        detectedCategory = 'shoes';
-      } else if (
-        catLow.includes('jacket') ||
-        catLow.includes('coat') ||
-        catLow.includes('blazer') ||
-        catLow.includes('overcoat') ||
-        catLow.includes('cardigan')
-      ) {
-        detectedCategory = 'outerwear';
-      } else if (
-        catLow.includes('accessories') ||
-        catLow.includes('bag') ||
-        catLow.includes('jewelry')
-      ) {
-        detectedCategory = 'accessories';
-      } else {
-        detectedCategory = 'tops';
+      let detectedCategory = activeCategory !== 'all' ? activeCategory : 'tops';
+      if (geminiData?.garmentCategory) {
+        const cat = (geminiData.garmentCategory || '').toLowerCase();
+        if (cat.includes('dress')) detectedCategory = 'dresses';
+        else if (cat.includes('trouser') || cat.includes('pant') || cat.includes('jean') || cat.includes('skirt')) detectedCategory = 'trousers';
+        else if (cat.includes('shoe') || cat.includes('footwear')) detectedCategory = 'shoes';
+        else if (cat.includes('jacket') || cat.includes('coat')) detectedCategory = 'outerwear';
+        else detectedCategory = 'tops';
       }
 
-      const detectedName =
-        customDetails?.name?.trim() ||
-        (geminiData?.designAnalysis?.skirtStyle
-          ? `${geminiData.primaryColor || ''} ${geminiData.designAnalysis.skirtStyle} Dress`.trim()
-          : file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
+      let detectedName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+      detectedName = detectedName.replace(/\b\w/g, (c) => c.toUpperCase());
+      if (geminiData?.designAnalysis?.skirtStyle) {
+        detectedName = `${geminiData.primaryColor || ''} ${geminiData.designAnalysis.skirtStyle} Dress`.trim();
+      }
 
-      const detectedColorHex = customDetails?.colorHex || customDetails?.primaryColor || geminiData?.primaryColor || '#e5779c';
-      const detectedColorName = customDetails?.color || 'Pink';
-      const detectedPattern = customDetails?.pattern || geminiData?.patternType || 'Plain';
-      const detectedMaterial = customDetails?.material || 'Cotton';
-      const detectedOccasions = Array.isArray(customDetails?.occasions) && customDetails.occasions.length > 0
-        ? customDetails.occasions
-        : ['Party', 'Casual'];
-      const detectedSeasons = Array.isArray(customDetails?.seasons) && customDetails.seasons.length > 0
-        ? customDetails.seasons
-        : ['Summer', 'Spring'];
-      const detectedStyle = Array.isArray(customDetails?.style) && customDetails.style.length > 0
-        ? customDetails.style
-        : ['Chic'];
-      const detectedSubCategory = customDetails?.subCategory?.trim() || backendCategory;
-      const detectedTags = Array.isArray(customDetails?.tags) && customDetails.tags.length > 0
-        ? customDetails.tags
-        : [
-            ...detectedOccasions.map((o) => o.toLowerCase()),
-            ...detectedSeasons.map((s) => s.toLowerCase()),
-            detectedColorName.toLowerCase(),
-            detectedPattern.toLowerCase(),
-            detectedMaterial.toLowerCase(),
-            backendCategory.toLowerCase(),
-            'custom',
-            'wardrobe'
-          ];
+      let detectedColor = geminiData?.primaryColor || '#e5779c';
+      let detectedPattern = geminiData?.patternType || 'Plain';
+      let detectedTags = ['custom', 'uploaded', 'extracted', 'wardrobe'];
+      if (detectedPattern) detectedTags.push(detectedPattern.toLowerCase());
 
       // 1. Cloud-Based 2D-to-3D Garment Generation
       let cloud3DResult = null;
@@ -722,7 +661,7 @@ export default function App() {
       try {
         const cloth3D = await convert2DClothTo3D(clothImageToBake, {
           category: detectedCategory,
-          color: detectedColorHex,
+          color: detectedColor,
           name: detectedName,
           pattern: detectedPattern
         });
@@ -749,23 +688,15 @@ export default function App() {
         id: `custom-${Date.now()}`,
         name: detectedName || 'Custom Extracted Piece',
         category: detectedCategory,
-        subCategory: detectedSubCategory,
-        colorName: detectedColorName,
-        pattern: detectedPattern,
-        material: detectedMaterial,
-        occasion: detectedOccasions,
-        season: detectedSeasons,
-        style: detectedStyle,
-        description: `Authentic ${detectedMaterial} ${detectedName} (${detectedPattern} pattern, suited for ${detectedOccasions.join(', ')}).`,
-        details: [
-          'Background & Person Removed',
-          'Auto-Rigged & Skeleton-Bound',
-          `Fabric: ${detectedMaterial}`,
-          `Occasions: ${detectedOccasions.join(', ')}`,
-          `Season: ${detectedSeasons.join(', ')}`,
-        ],
-        colors: [{ name: detectedColorName, hex: detectedColorHex }],
-        primaryColor: detectedColorHex,
+        price: 110,
+        discountPrice: null,
+        rating: 5.0,
+        reviewsCount: 1,
+        description: 'Authentic 3D garment extracted from photo and fitted to female avatar.',
+        details: ['Background & Person Removed', 'Auto-Rigged & Skeleton-Bound', 'High-Res PBR Textures'],
+        sizes: ['XS', 'S', 'M', 'L'],
+        colors: [{ name: 'Custom Hue', hex: detectedColor }],
+        primaryColor: detectedColor,
         brand: 'My Closet',
         inStock: true,
         stockCount: 1,
@@ -788,7 +719,7 @@ export default function App() {
       setSelectedProduct(readyItem);
       setUploadedClothes((prev) => [readyItem, ...prev]);
 
-      // Save to MongoDB Atlas with complete RAG tags and attributes
+      // Save to MongoDB Atlas
       setUploadStatus('Saving to MongoDB Atlas…');
       try {
         const token = authToken || (await ensureAuth());
@@ -799,23 +730,15 @@ export default function App() {
           }
 
           const savedBackendItem = await addClothingItem(token, {
-            name:            readyItem.name,
-            category:        backendCategory,
-            subCategory:     detectedSubCategory,
-            color:           detectedColorName,
-            primaryColor:    detectedColorHex,
-            secondaryColors: [],
-            pattern:         detectedPattern,
-            material:        detectedMaterial,
-            season:          detectedSeasons,
-            occasion:        detectedOccasions,
-            style:           detectedStyle,
-            brand:           'My Closet',
-            description:     readyItem.description,
-            size:            'M',
-            tags:            detectedTags,
-            imageUrl:        extractionModal.extractedImage || displayImg,
-            model3d:         readyItem.model3d || undefined
+            name:        readyItem.name,
+            category:    detectedCategory,
+            color:       detectedColor,
+            brand:       'My Closet',
+            description: readyItem.description,
+            size:        'M',
+            tags:        detectedTags,
+            imageUrl:    extractionModal.extractedImage || displayImg,
+            model3d:     readyItem.model3d || undefined
           });
 
           if (savedBackendItem?.backendId) {
@@ -929,35 +852,17 @@ export default function App() {
         </div>
       )}
 
-      {/* Toast Notification (Success / Info / Error) */}
+      {/* Compact & Attractive Toast Notification */}
       {toast && (
-        <div
-          className="tryon-toast"
-          style={{
-            bottom: 78,
-            background: toast.type === 'error'
-              ? 'linear-gradient(135deg, rgba(225, 29, 72, 0.95), rgba(190, 18, 60, 0.95))'
-              : 'linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95))',
-            borderColor: toast.type === 'error' ? '#fb7185' : '#34d399',
-            boxShadow: toast.type === 'error'
-              ? '0 8px 32px rgba(225, 29, 72, 0.35)'
-              : '0 8px 32px rgba(16, 185, 129, 0.35)'
-          }}
-        >
+        <div className={`elegant-toast ${toast.type || 'success'}`}>
           {toast.type === 'error' ? (
-            <AlertCircle size={15} style={{ color: '#fff' }} />
+            <AlertCircle size={14} style={{ color: '#fb7185', flexShrink: 0 }} />
           ) : (
-            <Database size={15} style={{ color: '#fff' }} />
+            <Sparkles size={14} style={{ color: '#f472b6', flexShrink: 0 }} />
           )}
-          <span style={{ color: '#fff', fontWeight: 600 }}>{toast.text}</span>
+          <span>{toast.text}</span>
         </div>
       )}
-
-      {/* Movement Hint Pill */}
-      <div className="hint-pill">
-        <Compass size={13} />
-        <span>Walk: <strong>WASD / Arrow Keys</strong> or D-Pad &nbsp;·&nbsp; Click clothes to inspect &amp; try on</span>
-      </div>
 
       {/* =========================================================
           TOP NAVIGATION BAR
@@ -1004,44 +909,6 @@ export default function App() {
               <span className="topbar-badge">{wishlistItems.length}</span>
             )}
           </button>
-
-          <button
-            onClick={() => setIsCartOpen(true)}
-            className="topbar-icon-btn"
-            title="Shopping bag"
-          >
-            <ShoppingBag size={17} />
-            {cartItems.length > 0 && (
-              <span className="topbar-badge">
-                {cartItems.reduce((acc, i) => acc + (i.quantity || 1), 0)}
-              </span>
-            )}
-          </button>
-
-          {currentUser ? (
-            <div className="profile-pill" style={{ cursor: 'pointer' }} onClick={handleLogout} title="Click to sign out">
-              <div className="profile-avatar" style={{
-                width: 28, height: 28, borderRadius: '50%',
-                background: 'linear-gradient(135deg,#9e7bb5,#e879a0)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, fontWeight: 700, color: '#fff', flexShrink: 0
-              }}>
-                {(currentUser.name || currentUser.email || 'U')[0].toUpperCase()}
-              </div>
-              <span className="profile-name">Hi, {(currentUser.name || currentUser.email || '').split(' ')[0]}</span>
-              <LogOut size={13} style={{ opacity: 0.7 }} />
-            </div>
-          ) : (
-            <button
-              className="topbar-pill-btn"
-              onClick={() => setShowLoginModal(true)}
-              title="Sign in to sync your wardrobe"
-              style={{ background: 'rgba(158,123,181,0.25)', borderColor: 'rgba(158,123,181,0.5)' }}
-            >
-              <LogIn size={13} />
-              <span>Sign In</span>
-            </button>
-          )}
         </div>
       </header>
 
@@ -1049,17 +916,6 @@ export default function App() {
           LEFT NAVIGATION DOCK
           ========================================================= */}
       <nav className="left-dock">
-        <button
-          className={`dock-btn${panelTab === 'catalog' ? ' active' : ''}`}
-          title="Boutique Catalog"
-          onClick={() => {
-            setPanelTab('catalog');
-            setActiveCategory('all');
-          }}
-        >
-          <Home size={18} />
-          <span>Catalog</span>
-        </button>
         <button
           className={`dock-btn${panelTab === 'wardrobe' ? ' active' : ''}`}
           title="My Wardrobe (MongoDB Atlas)"
@@ -1081,11 +937,11 @@ export default function App() {
         </button>
         <button
           className="dock-btn"
-          title="My Bag"
-          onClick={() => setIsCartOpen(true)}
+          title="Favorites"
+          onClick={() => setIsWishlistOpen(true)}
         >
-          <ShoppingBag size={18} />
-          <span>My Bag</span>
+          <Heart size={18} />
+          <span>Favorites</span>
         </button>
         <button
           className="dock-btn"
@@ -1185,23 +1041,15 @@ export default function App() {
           ========================================================= */}
       <aside className="wardrobe-panel">
 
-        {/* View Mode Switcher: My Wardrobe (MongoDB) vs Store Catalog */}
+        {/* Wardrobe Header Tab */}
         <div className="wardrobe-mode-tabs">
           <button
             type="button"
-            className={`wardrobe-mode-tab${panelTab === 'wardrobe' ? ' active' : ''}`}
+            className="wardrobe-mode-tab active"
             onClick={() => setPanelTab('wardrobe')}
           >
             <Shirt size={14} />
             <span>My Wardrobe ({backendWardrobe.length})</span>
-          </button>
-          <button
-            type="button"
-            className={`wardrobe-mode-tab${panelTab === 'catalog' ? ' active' : ''}`}
-            onClick={() => setPanelTab('catalog')}
-          >
-            <Grid size={14} />
-            <span>Store Catalog</span>
           </button>
         </div>
 
@@ -1276,13 +1124,13 @@ export default function App() {
               </div>
               <div>
                 <p className="upload-primary-text">
-                  {isUploadingCloth ? (uploadStatus || 'Saving to MongoDB…') : 'Upload Cloth Image'}
+                  {isUploadingCloth ? (uploadStatus || 'Saving to MongoDB…') : 'Click to upload'}
                 </p>
-                <p className="upload-sub-text">
-                  {isUploadingCloth
-                    ? 'Processing AI Vision & Database…'
-                    : 'Click to upload · Stores in MongoDB & 3D Try-On'}
-                </p>
+                {isUploadingCloth && (
+                  <p className="upload-sub-text">
+                    Processing AI Vision &amp; Database…
+                  </p>
+                )}
               </div>
             </div>
           </button>
@@ -1291,10 +1139,7 @@ export default function App() {
           <div style={{ marginTop: '14px' }}>
             <div className="catalog-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <h3 className="catalog-title">
-                  {panelTab === 'wardrobe' ? 'My Wardrobe Pieces' : 'Store Catalog'}
-                </h3>
-                {panelTab === 'wardrobe' && null}
+                <h3 className="catalog-title">My Wardrobe Pieces</h3>
               </div>
               <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.55)' }}>
                 {displayedItems.length} {displayedItems.length === 1 ? 'piece' : 'pieces'}
@@ -1312,12 +1157,10 @@ export default function App() {
               }}>
                 <Shirt size={28} style={{ color: 'rgba(255,255,255,0.25)', margin: '0 auto 8px', display: 'block' }} />
                 <p style={{ margin: '0 0 6px 0', fontSize: '12.5px', fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>
-                  {panelTab === 'wardrobe' ? 'No saved clothes in this category' : 'No catalog items found'}
+                  No saved clothes in this category
                 </p>
                 <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.4 }}>
-                  {panelTab === 'wardrobe'
-                    ? 'Click "Upload Cloth Image" above to store custom pieces in your MongoDB database!'
-                    : 'Select "All" to browse the complete collection.'}
+                  Click "Click to upload" above to store custom pieces in your MongoDB database!
                 </p>
               </div>
             ) : (
@@ -1375,7 +1218,6 @@ export default function App() {
               { key: 'College', label: 'College',  Icon: GraduationCap },
               { key: 'Party',   label: 'Party',    Icon: Wine },
               { key: 'Office',  label: 'Office',   Icon: Briefcase },
-              { key: 'Date',    label: 'Date',     Icon: Heart },
               { key: 'All',     label: 'All',      Icon: Sparkle }
             ].map(({ key, label, Icon }) => (
               <button
