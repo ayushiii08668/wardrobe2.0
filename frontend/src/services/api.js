@@ -224,13 +224,25 @@ export async function getRAGOutfitRecommendations({ query = '', preferences = {}
   }
 }
 
-export async function searchClothingByImage(fileOrFormData) {
+export async function searchClothingByImage(fileOrFormData, detectedFeatures = {}) {
   try {
     const token = getToken();
     let body = fileOrFormData;
-    if (fileOrFormData instanceof File) {
+    if (fileOrFormData instanceof File || fileOrFormData instanceof Blob) {
       body = new FormData();
       body.append('image', fileOrFormData);
+    }
+    if (body instanceof FormData && detectedFeatures && typeof detectedFeatures === 'object') {
+      if (detectedFeatures.name) body.append('name', detectedFeatures.name);
+      if (detectedFeatures.category) body.append('category', detectedFeatures.category);
+      const color = detectedFeatures.colour?.dominant || detectedFeatures.color || detectedFeatures.primaryColor;
+      if (color) body.append('color', color);
+      if (detectedFeatures.pattern) body.append('pattern', detectedFeatures.pattern);
+      if (detectedFeatures.material || detectedFeatures.fabric) body.append('material', detectedFeatures.material || detectedFeatures.fabric);
+      const occasions = detectedFeatures.recommended_occasions || detectedFeatures.occasions || detectedFeatures.occasion;
+      if (Array.isArray(occasions) && occasions.length > 0) body.append('occasion', occasions.join(', '));
+      const seasons = detectedFeatures.recommended_seasons || detectedFeatures.seasons || detectedFeatures.season;
+      if (Array.isArray(seasons) && seasons.length > 0) body.append('season', seasons.join(', '));
     }
     const res = await fetch(`${API_BASE}/recommendations/search-by-image`, {
       method: 'POST',

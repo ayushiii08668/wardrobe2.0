@@ -14,18 +14,20 @@ import { groqAnalyzeClothingImage } from './groqService.js';
 export const getMockAiPrediction = (filename = '') => {
   const lowerName = filename.toLowerCase();
 
-  let category    = 'Jacket';
-  let subCategory = 'Denim Jacket';
-  let color       = 'Blue';
-  let material    = 'Denim';
-  let pattern     = 'Solid';
+  let category    = 'Dress';
+  let subCategory = 'Casual Dress';
+  let color       = 'Pink';
+  let material    = 'Cotton';
+  let pattern     = 'Floral';
 
-  if (lowerName.includes('shirt')) {
+  if (lowerName.includes('shirt') || lowerName.includes('top')) {
     category = 'Shirt'; subCategory = 'Oxford Shirt'; color = 'White'; material = 'Cotton'; pattern = 'Striped';
-  } else if (lowerName.includes('jean') || lowerName.includes('trouser')) {
+  } else if (lowerName.includes('jean') || lowerName.includes('pant') || lowerName.includes('trouser')) {
     category = 'Jeans'; subCategory = 'Slim Fit Denim'; color = 'Black'; material = 'Denim'; pattern = 'Solid';
-  } else if (lowerName.includes('dress')) {
-    category = 'Dress'; subCategory = 'Casual Dress'; color = 'Red'; material = 'Cotton'; pattern = 'Floral';
+  } else if (lowerName.includes('jacket') || lowerName.includes('coat') || lowerName.includes('trench')) {
+    category = 'Jacket'; subCategory = 'Casual Jacket'; color = 'Beige'; material = 'Cotton'; pattern = 'Solid';
+  } else if (lowerName.includes('dress') || lowerName.includes('frock') || lowerName.includes('pink') || lowerName.includes('floral')) {
+    category = 'Dress'; subCategory = 'Floral Dress'; color = 'Pink'; material = 'Chiffon'; pattern = 'Floral';
   } else if (lowerName.includes('shoe') || lowerName.includes('boot') || lowerName.includes('sneaker')) {
     category = 'Shoes'; subCategory = 'Casual Shoes'; color = 'Brown'; material = 'Leather'; pattern = 'Plain';
   }
@@ -150,7 +152,7 @@ export const recognizeClothingImage = async (relativeImagePath) => {
     const mimeType   = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
 
     const formData = new FormData();
-    formData.append('image', new Blob([fileBuffer], { type: mimeType }), filename);
+    formData.append('file', new Blob([fileBuffer], { type: mimeType }), filename);
 
     const response = await fetch(targetUrl, {
       method: 'POST',
@@ -163,11 +165,25 @@ export const recognizeClothingImage = async (relativeImagePath) => {
     }
 
     const json = await response.json();
-    if (!json || json.success !== true || !json.data) {
+    if (!json || (!json.category && !json.data)) {
       throw new Error('OpenCV service returned invalid prediction data.');
     }
 
-    const normalizedData = normalizeAiPrediction(json.data);
+    const rawData = json.data || {
+      category: json.category,
+      subCategory: json.category_group,
+      color: json.colour?.dominant,
+      secondaryColors: json.colour?.secondary ? [json.colour.secondary] : [],
+      pattern: json.pattern,
+      material: json.material || null,
+      season: json.recommended_seasons || [],
+      occasion: json.recommended_occasions || [],
+      confidence: json.confidence || 0.85,
+      stylingTip: 'Pair with complementary wardrobe pieces for an elegant look.',
+      analyzedBy: 'FastAPI OpenCV Vision Service'
+    };
+
+    const normalizedData = normalizeAiPrediction(rawData);
     console.log(`[AI] OpenCV service succeeded for: ${filename}`);
     return { success: true, isMock: false, isGroq: false, data: normalizedData };
 

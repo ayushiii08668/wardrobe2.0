@@ -47,11 +47,15 @@ export const searchClothingByImage = async (req, res, next) => {
     const userId = req.user?._id;
     let features = {};
 
-    if (req.body.category || req.body.color || req.body.dominantColor || req.body.pattern) {
+    if (req.body.category || req.body.color || req.body.dominantColor || req.body.pattern || req.body.name) {
       features = {
+        name: req.body.name,
         category: req.body.category,
         dominantColor: req.body.color || req.body.dominantColor,
         pattern: req.body.pattern,
+        material: req.body.material,
+        occasion: req.body.occasion,
+        season: req.body.season,
         aspectRatio: req.body.aspectRatio
       };
     }
@@ -63,10 +67,13 @@ export const searchClothingByImage = async (req, res, next) => {
         const aiResult = await recognizeClothingImage(relativePath);
         if (aiResult?.data) {
           features = {
+            name: features.name || aiResult.data.name || aiResult.data.subCategory,
             category: features.category || aiResult.data.category,
             dominantColor: features.dominantColor || aiResult.data.color,
             pattern: features.pattern || aiResult.data.pattern,
             material: features.material || aiResult.data.material,
+            occasion: features.occasion || aiResult.data.occasion,
+            season: features.season || aiResult.data.season,
             aspectRatio: features.aspectRatio || 1.2
           };
         }
@@ -75,7 +82,45 @@ export const searchClothingByImage = async (req, res, next) => {
       }
     }
 
+    // Direct MongoDB match check: Check if user has an item in their wardrobe matching this name or category + color
+    const queryConditions = [];
+    if (features.name && features.name !== 'Detected Garment') {
+      const safeName = features.name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+      queryConditions.push({ name: { $regex: new RegExp(safeName, 'i') } });
+    }
+    if (features.category && features.dominantColor) {
+      queryConditions.push({
+        $and: [
+          { category: { $regex: new RegExp(features.category, 'i') } },
+          { color: { $regex: new RegExp(features.dominantColor, 'i') } }
+        ]
+      });
+    }
+
+    let directWardrobeMatches = [];
+    if (queryConditions.length > 0) {
+      const filter = { $or: queryConditions };
+      if (userId) filter.userId = userId;
+      directWardrobeMatches = await ClothingItem.find(filter).lean();
+    }
+
     const result = await executeRAGImageSearch({ features, userId });
+
+    // If direct wardrobe matches exist, merge them at the top of exactMatches
+    if (directWardrobeMatches.length > 0) {
+      const existingIds = new Set((result.exactMatches || []).map(m => (m._id || m.id).toString()));
+      const newExact = [...(result.exactMatches || [])];
+      directWardrobeMatches.forEach(item => {
+        if (!existingIds.has(item._id.toString())) {
+          newExact.unshift(item);
+          existingIds.add(item._id.toString());
+        }
+      });
+      result.exactMatches = newExact;
+      result.notFound = false;
+      result.message = `Found ${newExact.length} exact match${newExact.length > 1 ? 'es' : ''} in your personal wardrobe.`;
+    }
+
     return res.status(200).json(result);
   } catch (error) {
     next(error);
