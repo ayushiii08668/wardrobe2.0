@@ -852,15 +852,27 @@ export default function App() {
         </div>
       )}
 
-      {/* Compact & Attractive Toast Notification */}
+      {/* Toast Notification (Success / Info / Error) */}
       {toast && (
-        <div className={`elegant-toast ${toast.type || 'success'}`}>
+        <div
+          className="tryon-toast"
+          style={{
+            bottom: 78,
+            background: toast.type === 'error'
+              ? 'linear-gradient(135deg, rgba(225, 29, 72, 0.95), rgba(190, 18, 60, 0.95))'
+              : 'linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95))',
+            borderColor: toast.type === 'error' ? '#fb7185' : '#34d399',
+            boxShadow: toast.type === 'error'
+              ? '0 8px 32px rgba(225, 29, 72, 0.35)'
+              : '0 8px 32px rgba(16, 185, 129, 0.35)'
+          }}
+        >
           {toast.type === 'error' ? (
-            <AlertCircle size={14} style={{ color: '#fb7185', flexShrink: 0 }} />
+            <AlertCircle size={15} style={{ color: '#fff' }} />
           ) : (
-            <Sparkles size={14} style={{ color: '#f472b6', flexShrink: 0 }} />
+            <Database size={15} style={{ color: '#fff' }} />
           )}
-          <span>{toast.text}</span>
+          <span style={{ color: '#fff', fontWeight: 600 }}>{toast.text}</span>
         </div>
       )}
 
