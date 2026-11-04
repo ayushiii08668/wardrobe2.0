@@ -35,7 +35,12 @@ app.use(
     origin: (origin, callback) => {
       // Allow non-browser requests (e.g. mobile apps, curl, Postman, automated tests)
       if (!origin) return callback(null, true);
+      // Allow configured origins or wildcard
       if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+        return callback(null, true);
+      }
+      // In development, automatically allow any localhost / 127.0.0.1 origin on any port (5173, 5174, 5175, etc.)
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
         return callback(null, true);
       }
       return callback(null, false);
