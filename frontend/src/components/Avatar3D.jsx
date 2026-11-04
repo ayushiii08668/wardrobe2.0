@@ -674,34 +674,8 @@ export default function Avatar3D({
     };
   }, [outfit, avatarScene, garmentGeometries, skinMat]);
 
-  // ── Try-On Aura Sparkle ───────────────────────────────────────────────────
-  const auraRef = useRef();
-  useFrame((state, delta) => {
-    if (auraRef.current && isTryOnEffect) {
-      const t = state.clock.getElapsedTime();
-      auraRef.current.rotation.y += delta * 2.2;
-      const s = 1 + Math.sin(t * 8) * 0.1;
-      auraRef.current.scale.set(s, s, s);
-    }
-  });
-
   return (
     <group ref={groupRef} position={position} rotation={rotation}>
-      {isTryOnEffect && (
-        <group ref={auraRef} position={[0, 1.1, 0]}>
-          <mesh>
-            <ringGeometry args={[0.45, 0.52, 32]} />
-            <meshBasicMaterial
-              color="#f472b6"
-              side={THREE.DoubleSide}
-              transparent
-              opacity={0.8}
-              blending={THREE.AdditiveBlending}
-            />
-          </mesh>
-        </group>
-      )}
-
       {avatarScene && <primitive object={avatarScene} />}
     </group>
   );

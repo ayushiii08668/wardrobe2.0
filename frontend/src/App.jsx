@@ -250,9 +250,6 @@ export default function App() {
   // --- Handlers: Virtual Try-On ---
   const handleTryOn = (product) => {
     if (!product) return;
-    setIsTryOnEffect(true);
-    setTimeout(() => setIsTryOnEffect(false), 2000);
-    showToast(`Dressed 3D Model in: ${product.name}`);
 
     setCurrentOutfit((prev) => {
       const next = { ...prev };
@@ -360,9 +357,6 @@ export default function App() {
   };
 
   const handleTryFullOutfit = (items) => {
-    setIsTryOnEffect(true);
-    setTimeout(() => setIsTryOnEffect(false), 2200);
-    showToast('Applied curated outfit on 3D Model!');
 
     setCurrentOutfit((prev) => {
       const next = { ...prev };
@@ -419,8 +413,6 @@ export default function App() {
   };
 
   const handleResetOutfit = () => {
-    setIsTryOnEffect(true);
-    setTimeout(() => setIsTryOnEffect(false), 1500);
     setCurrentOutfit({
       top: PRODUCTS.find((p) => p.id === 'top-1'),
       bottom: PRODUCTS.find((p) => p.id === 'trouser-1'),
@@ -844,13 +836,7 @@ export default function App() {
         </Canvas>
       </div>
 
-      {/* Try-On Flash Toast */}
-      {isTryOnEffect && (
-        <div className="tryon-toast">
-          <Sparkles size={15} className="text-pink-300" />
-          <span>Trying on outfit…</span>
-        </div>
-      )}
+      
 
       {/* Toast Notification (Success / Info / Error) */}
       {toast && (

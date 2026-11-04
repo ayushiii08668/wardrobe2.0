@@ -119,7 +119,6 @@ button {
   from { opacity: 0; transform: translate(-50%, -14px) scale(0.95); }
   to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
 }
-}
 
 /* =========================================================
    HINT PILL
