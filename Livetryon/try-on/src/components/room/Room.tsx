@@ -151,8 +151,12 @@ export default function Room() {
           onTick: (seconds) => useUsageStore.getState().add(seconds),
           onCapacityWait: (retryAfterMs) =>
             setBanner(`Server busy — retrying in ${Math.max(1, Math.round(retryAfterMs / 1000))} s`),
-          onError: (code) => {
+          onError: (code, message) => {
+            console.error('[DecartRoom] session onError:', code, message)
             const mapped = mapError(code)
+            if (message) {
+              mapped.detail = `${mapped.detail} (${message})`
+            }
             setError(mapped)
             setPhase("ALIGNING")
             setRemote(null)
@@ -164,8 +168,30 @@ export default function Room() {
         rtRef.current = rt
         wornRef.current = true
       } catch (e) {
-        const code = (e as Error & { code?: string })?.code
-        setError(mapError(code ?? "WEB_RTC_ERROR"))
+        console.error('[DecartRoom] startSession catch:', e)
+        const code = (e as any)?.code
+        const msg = (e as any)?.message || String(e)
+        let mapped = code ? mapError(code) : null
+        if (!mapped) {
+          if (msg.includes('401') || msg.includes('403') || msg.includes('key')) {
+            mapped = mapError('INVALID_API_KEY')
+          } else if (msg.includes('limit') || msg.includes('concurrent') || msg.includes('SESSION_LIMIT')) {
+            mapped = mapError('SESSION_LIMIT')
+          } else if (msg.includes('quota') || msg.includes('credits') || msg.includes('balance') || msg.includes('402')) {
+            mapped = {
+              title: "Credits Exhausted",
+              detail: "Your Decart AI account has run out of credits or quota. Check platform.decart.ai.",
+              action: "retry"
+            }
+          } else {
+            mapped = {
+              title: "Connection Failed",
+              detail: msg || "Decart WebRTC connection failed. Check firewall, close duplicate tabs, or try a hotspot/VPN.",
+              action: "retry"
+            }
+          }
+        }
+        setError(mapped)
         setPhase("ALIGNING")
         setRemote(null)
         remoteRef.current = null
