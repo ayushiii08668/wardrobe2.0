@@ -424,7 +424,20 @@ export default function Room() {
     <div className="mx-auto flex w-full max-w-md flex-col gap-3 p-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold">Try-On · Anywear</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold">Try-On · Anywear</span>
+          <button
+            onClick={() =>
+              window.open(
+                chrome.runtime.getURL("tabs/onboarding.html").replace(/^extension:\/\//, "chrome-extension://"),
+                "_blank"
+              )
+            }
+            title="Change Decart API Key"
+            className="rounded px-1.5 py-0.5 text-[11px] text-muted hover:bg-hairline/20 hover:text-foreground transition-all">
+            ⚙️ Key
+          </button>
+        </div>
         <div className="flex items-center gap-2">
           <span className="text-xs tabular-nums text-muted">
             {Math.floor(usageSeconds / 60)}:{String(usageSeconds % 60).padStart(2, "0")} used
