@@ -415,3 +415,124 @@ export async function deleteClothingItem(token, clothingId) {
   }
 }
 
+/**
+ * Analyzes a clothing item with Gemini Vision before try-on
+ */
+export async function analyzeGarmentApi({ garmentFile, garmentBase64, clothingItemId, token }) {
+  let authToken = token || (await ensureAuth());
+  const headers = {};
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  try {
+    if (garmentFile) {
+      const formData = new FormData();
+      formData.append('garmentImage', garmentFile);
+      const res = await fetch(`${BACKEND_URL}/api/tryon/analyze-garment`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      if (res.ok) return await res.json();
+    } else {
+      headers['Content-Type'] = 'application/json';
+      const res = await fetch(`${BACKEND_URL}/api/tryon/analyze-garment`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ garmentBase64, clothingItemId }),
+      });
+      if (res.ok) return await res.json();
+    }
+  } catch (e) {
+    console.warn('Garment analysis notice:', e.message);
+  }
+  return { success: false };
+}
+
+/**
+ * Generate Dual-Upload Virtual Try-On look with Google Gemini
+ * Accepts person image (file or base64) and garment image (file, base64, or wardrobe item ID)
+ */
+export async function generateGeminiTryOnApi({
+  personFile,
+  personBase64,
+  personImageUrl,
+  garmentFile,
+  garmentBase64,
+  garmentImageUrl,
+  clothingItemId,
+  category = 'tops',
+  garmentDescription = '',
+  token
+}) {
+  let authToken = token || (await ensureAuth());
+  const headers = {};
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  // If we have actual File objects, send multipart/form-data
+  if (personFile || garmentFile) {
+    const formData = new FormData();
+    if (personFile) formData.append('personImage', personFile);
+    else if (personBase64) formData.append('personImageBase64', personBase64);
+    else if (personImageUrl) formData.append('personImageUrl', personImageUrl);
+
+    if (garmentFile) formData.append('garmentImage', garmentFile);
+    else if (garmentBase64) formData.append('garmentImageBase64', garmentBase64);
+    else if (garmentImageUrl) formData.append('garmentImageUrl', garmentImageUrl);
+    if (clothingItemId) formData.append('clothingItemId', clothingItemId);
+
+    formData.append('category', category);
+    if (garmentDescription) formData.append('garmentDescription', garmentDescription);
+
+    const res = await fetch(`${BACKEND_URL}/api/tryon/generate`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `Try-on generation failed (${res.status})`);
+    }
+
+    const data = await res.json();
+    if (data.resultUrl && data.resultUrl.startsWith('/')) {
+      data.resultUrl = `${BACKEND_URL}${data.resultUrl}`;
+    }
+    return data;
+  }
+
+  // Otherwise send JSON
+  headers['Content-Type'] = 'application/json';
+  const body = {
+    personImageBase64: personBase64,
+    personImageUrl,
+    garmentImageBase64: garmentBase64,
+    garmentImageUrl,
+    clothingItemId,
+    category,
+    garmentDescription,
+  };
+
+  const res = await fetch(`${BACKEND_URL}/api/tryon/generate`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `Try-on generation failed (${res.status})`);
+  }
+
+  const data = await res.json();
+  if (data.resultUrl && data.resultUrl.startsWith('/')) {
+    data.resultUrl = `${BACKEND_URL}${data.resultUrl}`;
+  }
+  return data;
+}
+
+

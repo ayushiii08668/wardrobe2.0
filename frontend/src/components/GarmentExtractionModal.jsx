@@ -492,7 +492,7 @@ export default function GarmentExtractionModal({
                   <Sparkles size={18} style={{ color: '#c084fc' }} />
                   <div>
                     <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#f1f5f9' }}>
-                      Wardrobe Details for RAG AI Stylist
+                      Wardrobe Details for Style Fusion Stylist
                     </h4>
                     <span style={{ fontSize: '0.75rem', color: '#a78bfa' }}>
                       Please review and adjust these questions. The AI Fashion Stylist uses these exact answers to answer questions like <em>"What should I wear to college?"</em> or <em>"Show me my pink party dress"</em>.
@@ -896,7 +896,7 @@ export default function GarmentExtractionModal({
                   boxShadow: '0 4px 14px rgba(168, 85, 247, 0.4)',
                 }}
               >
-                <Sparkles size={16} /> Save Details & Try On Avatar
+                <Sparkles size={16} /> Save Details to Wardrobe
               </button>
             </div>
           </div>

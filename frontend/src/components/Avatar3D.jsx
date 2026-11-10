@@ -754,35 +754,140 @@ export default function Avatar3D({
     };
   }, [outfit, avatarScene, garmentGeometries]);
 
-  // ── Try-On Aura Sparkle ───────────────────────────────────────────────────
-  const auraRef = useRef();
+  return (
+    <group ref={groupRef} position={position} rotation={rotation}>
+      {isTryOnEffect && <TryOnScannerAnimation />}
+      {avatarScene && <primitive object={avatarScene} />}
+    </group>
+  );
+}
+
+// ── Try-On 3D Holographic Fitting Animation ────────────────────────────────
+function TryOnScannerAnimation() {
+  const scannerRef = useRef();
+  const innerRingRef = useRef();
+  const floorHaloRef = useRef();
+  const sparklesGroupRef = useRef();
+
+  // Pre-generate 12 sparkle seed offsets
+  const sparkleSeeds = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => ({
+      phase: (i / 12) * Math.PI * 2,
+      ySeed: i / 12,
+      scale: 0.024 + (i % 3) * 0.008
+    }));
+  }, []);
+
   useFrame((state, delta) => {
-    if (auraRef.current && isTryOnEffect) {
-      const t = state.clock.getElapsedTime();
-      auraRef.current.rotation.y += delta * 2.2;
-      const s = 1 + Math.sin(t * 8) * 0.1;
-      auraRef.current.scale.set(s, s, s);
+    const t = state.clock.getElapsedTime();
+
+    // 1. Vertical Scanning Wave (sweeps smoothly between 0.15m and 1.65m)
+    if (scannerRef.current) {
+      const scanY = 0.9 + Math.sin(t * 3.8) * 0.75;
+      scannerRef.current.position.y = scanY;
+      scannerRef.current.rotation.z += delta * 2.8;
+    }
+
+    // 2. Secondary inner counter-rotating ring with subtle phase lag
+    if (innerRingRef.current) {
+      const scanY2 = 0.9 + Math.sin(t * 3.8 - 0.35) * 0.75;
+      innerRingRef.current.position.y = scanY2;
+      innerRingRef.current.rotation.z -= delta * 3.2;
+    }
+
+    // 3. Floor Halo Pulse & Rotation
+    if (floorHaloRef.current) {
+      floorHaloRef.current.rotation.z += delta * 0.8;
+      const pulse = 1 + Math.sin(t * 4.5) * 0.05;
+      floorHaloRef.current.scale.set(pulse, pulse, pulse);
+    }
+
+    // 4. Spiral Ascending Sparkle Points
+    if (sparklesGroupRef.current) {
+      const children = sparklesGroupRef.current.children;
+      for (let i = 0; i < children.length; i++) {
+        const mesh = children[i];
+        const seed = sparkleSeeds[i];
+        if (!seed) continue;
+        const angle = t * 2.5 + seed.phase;
+        const radius = 0.42 + Math.sin(t * 3.0 + seed.phase) * 0.04;
+        const py = ((t * 0.65 + seed.ySeed) % 1) * 1.75;
+        mesh.position.set(Math.cos(angle) * radius, py, Math.sin(angle) * radius);
+        mesh.rotation.y += delta * 4;
+        mesh.rotation.x += delta * 2;
+      }
     }
   });
 
   return (
-    <group ref={groupRef} position={position} rotation={rotation}>
-      {isTryOnEffect && (
-        <group ref={auraRef} position={[0, 1.1, 0]}>
-          <mesh>
-            <ringGeometry args={[0.45, 0.52, 32]} />
+    <group position={[0, 0, 0]}>
+      {/* 1. Primary Scanning Beam Ring (Horizontal) */}
+      <group ref={scannerRef} position={[0, 0.9, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh>
+          <ringGeometry args={[0.38, 0.44, 48]} />
+          <meshBasicMaterial
+            color="#f472b6"
+            side={THREE.DoubleSide}
+            transparent
+            opacity={0.88}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+        <pointLight color="#f472b6" intensity={2.0} distance={1.8} decay={2} />
+      </group>
+
+      {/* 2. Secondary Inner Violet Ring (Horizontal) */}
+      <group ref={innerRingRef} position={[0, 0.9, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh>
+          <ringGeometry args={[0.32, 0.36, 48]} />
+          <meshBasicMaterial
+            color="#c084fc"
+            side={THREE.DoubleSide}
+            transparent
+            opacity={0.75}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      </group>
+
+      {/* 3. Floor Pedestal Glow Halo */}
+      <group ref={floorHaloRef} position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh>
+          <ringGeometry args={[0.52, 0.62, 48]} />
+          <meshBasicMaterial
+            color="#ec4899"
+            side={THREE.DoubleSide}
+            transparent
+            opacity={0.55}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+        <mesh>
+          <ringGeometry args={[0.65, 0.68, 48]} />
+          <meshBasicMaterial
+            color="#a855f7"
+            side={THREE.DoubleSide}
+            transparent
+            opacity={0.35}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      </group>
+
+      {/* 4. Spiral Orbiting Sparkle Star Diamonds */}
+      <group ref={sparklesGroupRef}>
+        {sparkleSeeds.map((seed, i) => (
+          <mesh key={i} scale={[seed.scale, seed.scale * 1.5, seed.scale]}>
+            <octahedronGeometry args={[1, 0]} />
             <meshBasicMaterial
-              color="#f472b6"
-              side={THREE.DoubleSide}
+              color={i % 2 === 0 ? '#fbcfe8' : '#e9d5ff'}
               transparent
-              opacity={0.8}
+              opacity={0.9}
               blending={THREE.AdditiveBlending}
             />
           </mesh>
-        </group>
-      )}
-
-      {avatarScene && <primitive object={avatarScene} />}
+        ))}
+      </group>
     </group>
   );
 }

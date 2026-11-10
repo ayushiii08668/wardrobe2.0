@@ -11,6 +11,7 @@ import clothingRoutes from './routes/clothingRoutes.js';
 import outfitRoutes from './routes/outfitRoutes.js';
 import recommendationRoutes from './routes/recommendationRoutes.js';
 import garmentRoutes from './routes/garmentRoutes.js';
+import tryonRoutes from './routes/tryonRoutes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -71,6 +72,7 @@ app.use('/api/clothes', clothingRoutes);
 app.use('/api/outfits', outfitRoutes);
 app.use('/api/recommendations', recommendationRoutes);
 app.use('/api/garments', garmentRoutes);
+app.use('/api/tryon', tryonRoutes);
 
 // 404 Route handling
 app.use(notFoundHandler);

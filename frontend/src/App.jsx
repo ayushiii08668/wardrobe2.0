@@ -44,6 +44,8 @@ import CartDrawer from './components/CartDrawer.jsx';
 import WishlistDrawer from './components/WishlistDrawer.jsx';
 import GroqAIPanel from './components/GroqAIPanel.jsx';
 import GarmentExtractionModal from './components/GarmentExtractionModal.jsx';
+import PhotoTryOnModal from './components/PhotoTryOnModal.jsx';
+import LiveExtensionModal from './components/LiveExtensionModal.jsx';
 import { PRODUCTS, CATEGORIES, getRecommendations } from './data/products.js';
 import { analyzeClothingImage } from './services/aiService.js';
 import { convert2DClothTo3D } from './services/imageTo3DService.js';
@@ -89,6 +91,7 @@ export default function App() {
   });
 
   const [isTryOnEffect, setIsTryOnEffect] = useState(false);
+  const [tryOnItem, setTryOnItem] = useState(null);
 
   // --- Camera & View State ---
   const [cameraMode, setCameraMode] = useState('follow');
@@ -116,6 +119,9 @@ export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [isStylistOpen, setIsStylistOpen] = useState(false);
+  const [isPhotoTryOnOpen, setIsPhotoTryOnOpen] = useState(false);
+  const [isLiveCameraTryOnOpen, setIsLiveCameraTryOnOpen] = useState(false);
+  const [photoTryOnInitialData, setPhotoTryOnInitialData] = useState(null);
 
   // --- Mobile Touch D-Pad State ---
   const [dpadInput, setDpadInput] = useState({ x: 0, y: 0 });
@@ -250,9 +256,12 @@ export default function App() {
   // --- Handlers: Virtual Try-On ---
   const handleTryOn = (product) => {
     if (!product) return;
+    setTryOnItem(product);
     setIsTryOnEffect(true);
-    setTimeout(() => setIsTryOnEffect(false), 2000);
-    showToast(`Dressed 3D Model in: ${product.name}`);
+    setTimeout(() => {
+      setIsTryOnEffect(false);
+      setTryOnItem(null);
+    }, 2400);
 
     setCurrentOutfit((prev) => {
       const next = { ...prev };
@@ -360,9 +369,12 @@ export default function App() {
   };
 
   const handleTryFullOutfit = (items) => {
+    setTryOnItem({ name: 'Complete Curated Outfit' });
     setIsTryOnEffect(true);
-    setTimeout(() => setIsTryOnEffect(false), 2200);
-    showToast('Applied curated outfit on 3D Model!');
+    setTimeout(() => {
+      setIsTryOnEffect(false);
+      setTryOnItem(null);
+    }, 2400);
 
     setCurrentOutfit((prev) => {
       const next = { ...prev };
@@ -419,8 +431,12 @@ export default function App() {
   };
 
   const handleResetOutfit = () => {
+    setTryOnItem({ name: 'Reset to Default Wardrobe' });
     setIsTryOnEffect(true);
-    setTimeout(() => setIsTryOnEffect(false), 1500);
+    setTimeout(() => {
+      setIsTryOnEffect(false);
+      setTryOnItem(null);
+    }, 2000);
     setCurrentOutfit({
       top: PRODUCTS.find((p) => p.id === 'top-1'),
       bottom: PRODUCTS.find((p) => p.id === 'trouser-1'),
@@ -430,8 +446,6 @@ export default function App() {
       accessory: PRODUCTS.find((p) => p.id === 'acc-1')
     });
   };
-
-
 
   // --- Handlers: Shopping Bag ---
   const handleAddToCart = (product) => {
@@ -783,9 +797,7 @@ export default function App() {
         model3d: cloud3DResult,
       };
 
-      // Virtual Try-on onto 3D Avatar
-      handleTryOn(readyItem);
-      setSelectedProduct(readyItem);
+      // Store in wardrobe without auto try-on
       setUploadedClothes((prev) => [readyItem, ...prev]);
 
       // Save to MongoDB Atlas with complete RAG tags and attributes
@@ -833,7 +845,7 @@ export default function App() {
       }
 
       setExtractionModal((prev) => ({ ...prev, isOpen: false }));
-      showToast(`"${readyItem.name}" extracted & fitted onto avatar!`, 'success');
+      showToast(`"${readyItem.name}" extracted & saved to wardrobe! Click it to try on.`, 'success');
       setPanelTab('wardrobe');
     } catch (err) {
       console.error('Confirm extraction error:', err);
@@ -921,35 +933,34 @@ export default function App() {
         </Canvas>
       </div>
 
-      {/* Try-On Flash Toast */}
+      {/* Luxury Virtual Try-On HUD Banner */}
       {isTryOnEffect && (
-        <div className="tryon-toast">
-          <Sparkles size={15} className="text-pink-300" />
-          <span>Trying on outfit…</span>
+        <div className="tryon-banner-pill" role="status" aria-live="polite">
+          <div className="tryon-banner-icon">
+            <Sparkles size={16} />
+          </div>
+          <div className="tryon-banner-content">
+            <span className="tryon-banner-label">3D Virtual Fitting</span>
+            <span className="tryon-banner-title">
+              {tryOnItem?.name ? `Fitted: ${tryOnItem.name}` : 'Styling 3D Avatar…'}
+            </span>
+          </div>
+          <div className="tryon-banner-shimmer" />
         </div>
       )}
 
-      {/* Toast Notification (Success / Info / Error) */}
+      {/* System Toast Notification (Success / Info / Error) */}
       {toast && (
         <div
-          className="tryon-toast"
-          style={{
-            bottom: 78,
-            background: toast.type === 'error'
-              ? 'linear-gradient(135deg, rgba(225, 29, 72, 0.95), rgba(190, 18, 60, 0.95))'
-              : 'linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95))',
-            borderColor: toast.type === 'error' ? '#fb7185' : '#34d399',
-            boxShadow: toast.type === 'error'
-              ? '0 8px 32px rgba(225, 29, 72, 0.35)'
-              : '0 8px 32px rgba(16, 185, 129, 0.35)'
-          }}
+          className={`system-toast-pill ${toast.type === 'error' ? 'toast-error' : 'toast-success'}`}
+          role="status"
         >
           {toast.type === 'error' ? (
-            <AlertCircle size={15} style={{ color: '#fff' }} />
+            <AlertCircle size={15} />
           ) : (
-            <Database size={15} style={{ color: '#fff' }} />
+            <Check size={15} />
           )}
-          <span style={{ color: '#fff', fontWeight: 600 }}>{toast.text}</span>
+          <span>{toast.text}</span>
         </div>
       )}
 
@@ -976,7 +987,36 @@ export default function App() {
 
         {/* Right Controls */}
         <div className="topbar-actions">
-<button
+          <button
+            onClick={() => setIsLiveCameraTryOnOpen(true)}
+            className="topbar-pill-btn highlight-live-tryon"
+            title="Open Live Video Virtual Try-On (Decart AI Chrome Extension)"
+            style={{
+              background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.35), rgba(168, 85, 247, 0.35))',
+              borderColor: 'rgba(244, 114, 182, 0.65)',
+              color: '#fdf2f8',
+              boxShadow: '0 0 15px rgba(236, 72, 153, 0.25)',
+            }}
+          >
+            <Camera size={14} className="text-pink-300 animate-pulse" />
+            <span>🎥 Live AI Try-On</span>
+          </button>
+
+          <button
+            onClick={() => setIsPhotoTryOnOpen(true)}
+            className="topbar-pill-btn highlight-photo-tryon"
+            title="Open Dual-Upload AI Virtual Try-On Studio"
+            style={{
+              background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.28), rgba(236, 72, 153, 0.28))',
+              borderColor: 'rgba(216, 180, 254, 0.55)',
+              color: '#f3e8ff'
+            }}
+          >
+            <Sparkles size={14} className="text-pink-300" />
+            <span>AI Photo Try-On</span>
+          </button>
+
+          <button
             onClick={toggleCameraMode}
             className={`topbar-pill-btn${cameraMode === 'follow' ? ' active' : ''}`}
             title="Toggle camera mode"
@@ -1050,18 +1090,7 @@ export default function App() {
           ========================================================= */}
       <nav className="left-dock">
         <button
-          className={`dock-btn${panelTab === 'catalog' ? ' active' : ''}`}
-          title="Boutique Catalog"
-          onClick={() => {
-            setPanelTab('catalog');
-            setActiveCategory('all');
-          }}
-        >
-          <Home size={18} />
-          <span>Catalog</span>
-        </button>
-        <button
-          className={`dock-btn${panelTab === 'wardrobe' ? ' active' : ''}`}
+          className="dock-btn active"
           title="My Wardrobe (MongoDB Atlas)"
           onClick={() => {
             setPanelTab('wardrobe');
@@ -1070,6 +1099,27 @@ export default function App() {
         >
           <Shirt size={18} />
           <span>Wardrobe</span>
+        </button>
+        <button
+          className="dock-btn highlight-live-tryon-dock"
+          title="Live AI Try-On (Webcam Extension)"
+          onClick={() => setIsLiveCameraTryOnOpen(true)}
+          style={{
+            background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.28), rgba(168, 85, 247, 0.28))',
+            borderColor: 'rgba(244, 114, 182, 0.55)',
+          }}
+        >
+          <Camera size={18} className="text-pink-300 animate-pulse" />
+          <span>Live Try-On</span>
+        </button>
+        <button
+          className="dock-btn highlight-photo-tryon-dock"
+          title="Dual-Upload AI Virtual Try-On Studio"
+          onClick={() => setIsPhotoTryOnOpen(true)}
+          style={{ background: 'rgba(168, 85, 247, 0.22)', borderColor: 'rgba(168, 85, 247, 0.45)' }}
+        >
+          <Sparkles size={18} className="text-pink-300" />
+          <span>Photo Try-On</span>
         </button>
 <button
           className="dock-btn"
@@ -1185,24 +1235,15 @@ export default function App() {
           ========================================================= */}
       <aside className="wardrobe-panel">
 
-        {/* View Mode Switcher: My Wardrobe (MongoDB) vs Store Catalog */}
-        <div className="wardrobe-mode-tabs">
-          <button
-            type="button"
-            className={`wardrobe-mode-tab${panelTab === 'wardrobe' ? ' active' : ''}`}
-            onClick={() => setPanelTab('wardrobe')}
+        {/* Wardrobe Header */}
+        <div className="wardrobe-mode-tabs" style={{ gridTemplateColumns: '1fr' }}>
+          <div
+            className="wardrobe-mode-tab active"
+            style={{ width: '100%', justifyContent: 'center', cursor: 'default' }}
           >
             <Shirt size={14} />
-            <span>My Wardrobe ({backendWardrobe.length})</span>
-          </button>
-          <button
-            type="button"
-            className={`wardrobe-mode-tab${panelTab === 'catalog' ? ' active' : ''}`}
-            onClick={() => setPanelTab('catalog')}
-          >
-            <Grid size={14} />
-            <span>Store Catalog</span>
-          </button>
+            <span>My Wardrobe ({backendWardrobe.length || displayedItems.length})</span>
+          </div>
         </div>
 
         {/* Auth Status & Sync Banner */}
@@ -1292,9 +1333,8 @@ export default function App() {
             <div className="catalog-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <h3 className="catalog-title">
-                  {panelTab === 'wardrobe' ? 'My Wardrobe Pieces' : 'Store Catalog'}
+                  My Wardrobe Pieces
                 </h3>
-                {panelTab === 'wardrobe' && null}
               </div>
               <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.55)' }}>
                 {displayedItems.length} {displayedItems.length === 1 ? 'piece' : 'pieces'}
@@ -1312,12 +1352,10 @@ export default function App() {
               }}>
                 <Shirt size={28} style={{ color: 'rgba(255,255,255,0.25)', margin: '0 auto 8px', display: 'block' }} />
                 <p style={{ margin: '0 0 6px 0', fontSize: '12.5px', fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>
-                  {panelTab === 'wardrobe' ? 'No saved clothes in this category' : 'No catalog items found'}
+                  No saved clothes in this category
                 </p>
                 <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.4 }}>
-                  {panelTab === 'wardrobe'
-                    ? 'Click "Upload Cloth Image" above to store custom pieces in your MongoDB database!'
-                    : 'Select "All" to browse the complete collection.'}
+                  Click "Upload Cloth Image" above to store custom pieces in your MongoDB database!
                 </p>
               </div>
             ) : (
@@ -1469,7 +1507,7 @@ export default function App() {
           }
         }}
         onTryOnItem={handleTryOn}
-        mongoClothes={backendWardrobe}
+        mongoClothes={[...uploadedClothes.filter(u => !backendWardrobe.some(b => b.backendId === u.backendId)), ...backendWardrobe]}
       />
 
       {/* =========================================================
@@ -1595,6 +1633,38 @@ export default function App() {
           }
         }}
         errorMessage={extractionModal.errorMessage}
+      />
+
+      {/* =========================================================
+          LIVE VIDEO VIRTUAL TRY-ON (Decart AI Chrome Extension)
+          ========================================================= */}
+      <LiveExtensionModal
+        isOpen={isLiveCameraTryOnOpen}
+        onClose={() => setIsLiveCameraTryOnOpen(false)}
+        backendWardrobe={backendWardrobe}
+        uploadedClothes={uploadedClothes}
+        showToast={showToast}
+      />
+
+      {/* =========================================================
+          DUAL-UPLOAD AI VIRTUAL TRY-ON STUDIO (Gemini AI)
+          ========================================================= */}
+      <PhotoTryOnModal
+        isOpen={isPhotoTryOnOpen}
+        onClose={() => {
+          setIsPhotoTryOnOpen(false);
+          setPhotoTryOnInitialData(null);
+        }}
+        backendWardrobe={backendWardrobe}
+        uploadedClothes={uploadedClothes}
+        showToast={showToast}
+        authToken={authToken}
+        onOpenLiveAR={() => {
+          setIsPhotoTryOnOpen(false);
+          setIsLiveCameraTryOnOpen(true);
+        }}
+        initialPersonImage={photoTryOnInitialData?.person}
+        initialGarmentImage={photoTryOnInitialData?.garment}
       />
     </div>
   );

@@ -19,6 +19,9 @@ backend/node_modules/
 frontend/node_modules/
 dist/
 frontend/dist/
+build/
+.plasmo/
+*.zip
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

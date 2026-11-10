@@ -31,9 +31,9 @@ import {
 
 // ── COLOR VOCABULARY & FAMILIES ──────────────────────────────────────────────
 export const COLOR_FAMILIES = {
-  red: ['red', 'crimson', 'ruby', 'cherry', 'scarlet', 'burgundy', 'maroon', 'wine', 'rust'],
-  pink: ['pink', 'blush', 'rose', 'fuchsia', 'magenta', 'dusty rose', 'coral'],
-  blue: ['blue', 'navy', 'navy blue', 'sky blue', 'royal blue', 'indigo', 'denim', 'cobalt'],
+  red: ['red', 'crimson', 'ruby', 'cherry', 'scarlet', 'burgundy', 'maroon', 'wine', 'coral', 'rust', 'terracotta', 'brick', 'vermilion'],
+  pink: ['pink', 'blush', 'rose', 'fuchsia', 'magenta', 'dusty rose', 'coral', 'hot pink', 'salmon'],
+  blue: ['blue', 'navy', 'navy blue', 'sky blue', 'royal blue', 'indigo', 'denim', 'cobalt', 'teal', 'cyan'],
   green: ['green', 'emerald', 'olive', 'mint', 'forest green', 'sage'],
   black: ['black', 'charcoal', 'noir', 'onyx'],
   white: ['white', 'ivory', 'cream', 'off-white'],
@@ -41,7 +41,7 @@ export const COLOR_FAMILIES = {
   beige: ['beige', 'tan', 'camel', 'khaki', 'sand'],
   yellow: ['yellow', 'mustard', 'gold', 'amber'],
   purple: ['purple', 'violet', 'lavender', 'plum', 'lilac'],
-  brown: ['brown', 'chocolate', 'coffee']
+  brown: ['brown', 'chocolate', 'coffee', 'mocha', 'caramel']
 };
 
 export const COLOR_HEX_MAP = {
@@ -64,6 +64,61 @@ export const COLOR_HEX_MAP = {
   purple: '#9333ea',
   brown: '#78350f'
 };
+
+// ── GARMENT SUPER-CATEGORIES & FAMILIES ──────────────────────────────────────
+export const CATEGORY_FAMILIES = {
+  tops: [
+    'top', 'tops', 't-shirt', 'tshirt', 'tee', 'shirt', 'blouse',
+    'crop top', 'croptop', 'tank', 'tank top', 'camisole', 'halter',
+    'sweater', 'pullover', 'sweatshirt', 'hoodie', 'tunic', 'kurti',
+    'kurta', 'polo', 'vest', 'casual top', 'peplum', 'cardigan'
+  ],
+  bottoms: [
+    'bottom', 'bottoms', 'trousers', 'trouser', 'pants', 'pant',
+    'jeans', 'jean', 'denim', 'slacks', 'chinos', 'shorts', 'short',
+    'leggings', 'skirt', 'skirts', 'cargo', 'joggers', 'palazzo', 'culottes'
+  ],
+  dresses: [
+    'dress', 'dresses', 'frock', 'frocks', 'gown', 'gowns', 'sundress',
+    'slip dress', 'cocktail dress', 'maxi dress', 'midi dress', 'mini dress',
+    'vest dress', 'anarkali', 'saree', 'sari', 'lehenga', 'jumpsuit', 'romper'
+  ],
+  outerwear: [
+    'outerwear', 'jacket', 'jackets', 'coat', 'coats', 'blazer', 'blazers',
+    'cardigan', 'trench', 'overcoat', 'shrug', 'parka', 'bomber', 'windbreaker'
+  ],
+  shoes: [
+    'shoes', 'shoe', 'footwear', 'sneakers', 'sneaker', 'boots', 'boot',
+    'heels', 'heel', 'pumps', 'pump', 'sandals', 'sandal', 'loafers',
+    'loafer', 'flats', 'juttis', 'jutti', 'slippers'
+  ],
+  accessories: [
+    'accessories', 'accessory', 'bag', 'bags', 'handbag', 'purse',
+    'clutch', 'tote', 'backpack', 'belt', 'jewelry', 'necklace'
+  ]
+};
+
+export function getCategoryFamily(catString = '') {
+  if (!catString) return null;
+  const s = String(catString).toLowerCase().trim();
+  for (const [family, members] of Object.entries(CATEGORY_FAMILIES)) {
+    if (members.some((m) => s.includes(m) || m.includes(s))) {
+      return family;
+    }
+  }
+  return null;
+}
+
+export function getColorFamily(colorString = '') {
+  if (!colorString) return null;
+  const s = normalizeColor(colorString);
+  for (const [family, members] of Object.entries(COLOR_FAMILIES)) {
+    if (members.some((m) => s.includes(m) || m.includes(s))) {
+      return family;
+    }
+  }
+  return null;
+}
 
 // ── CATEGORY DEFINITIONS & EXCLUSIONS ────────────────────────────────────────
 export const CATEGORY_DEFINITIONS = {
@@ -94,7 +149,7 @@ export const CATEGORY_DEFINITIONS = {
   },
   dress: {
     name: 'Dress',
-    synonyms: ['dress', 'gown', 'slip dress', 'cocktail dress', 'sundress', 'maxi dress', 'midi dress'],
+    synonyms: ['dress', 'gown', 'slip dress', 'cocktail dress', 'sundress', 'maxi dress', 'midi dress', 'frock', 'vest dress'],
     forbidden: ['saree', 'sari', 'jeans', 'trousers', 'shirt']
   },
   jeans: {
@@ -104,22 +159,22 @@ export const CATEGORY_DEFINITIONS = {
   },
   trousers: {
     name: 'Trousers',
-    synonyms: ['trousers', 'pants', 'slacks', 'chinos', 'formal pants'],
+    synonyms: ['trousers', 'pants', 'slacks', 'chinos', 'formal pants', 'bottom', 'bottoms'],
     forbidden: ['jeans', 'dress', 'saree', 'frock']
   },
   shirt: {
     name: 'Shirt',
-    synonyms: ['shirt', 'button-down', 'blouse', 'oxford shirt', 'dress shirt'],
-    forbidden: ['t-shirt', 'tee', 'dress', 'saree', 'frock', 'jeans']
+    synonyms: ['shirt', 'button-down', 'blouse', 'oxford shirt', 'dress shirt', 'top', 'casual top', 't-shirt', 'tee'],
+    forbidden: ['dress', 'saree', 'frock', 'jeans']
   },
   't-shirt': {
     name: 'T-Shirt',
-    synonyms: ['t-shirt', 'tee', 'crew neck', 'crop top', 'tank top'],
+    synonyms: ['t-shirt', 'tee', 'crew neck', 'crop top', 'tank top', 'top', 'casual top', 'shirt'],
     forbidden: ['dress', 'saree', 'frock', 'jeans']
   },
   top: {
     name: 'Top',
-    synonyms: ['top', 'shirt', 'blouse', 't-shirt', 'tee', 'crop top', 'camisole', 'halter top', 'corset', 'sweater', 'pullover', 'tank', 'tank top'],
+    synonyms: ['top', 'shirt', 'blouse', 't-shirt', 'tee', 'crop top', 'camisole', 'halter top', 'corset', 'sweater', 'pullover', 'tank', 'tank top', 'casual top'],
     forbidden: ['saree', 'jeans', 'trousers', 'frock', 'lehenga']
   },
   skirt: {
@@ -477,12 +532,13 @@ export function evaluateCategoryMatch(item, targetCategory) {
     return -1.0;
   }
 
-  // 5. Strict Top Disambiguation (Shirts, Blouses, T-Shirts, Sweaters are all Tops)
-  if (targetCategory === 'top') {
+  // 5. Strict Top Disambiguation (Shirts, Blouses, T-Shirts, Tops, Sweaters, Casual Tops are all Tops)
+  const isTargetTop = ['top', 't-shirt', 'shirt', 'blouse', 'tee', 'tank', 'sweater', 'crop top'].includes(targetCategory);
+  if (isTargetTop) {
     if (combined.includes('saree') || combined.includes('anarkali') || combined.includes('lehenga') || combined.includes('jeans') || combined.includes('trouser') || combined.includes('frock')) return -1.0;
     if (cat.includes('shirt') || cat.includes('top') || cat.includes('blouse') || cat.includes('t-shirt') || cat.includes('sweater')) return 1.0;
-    if (subCat.includes('shirt') || subCat.includes('top') || subCat.includes('blouse') || subCat.includes('crew') || subCat.includes('button-down') || subCat.includes('sweater')) return 1.0;
-    if (name.includes('shirt') || name.includes('top') || name.includes('blouse') || name.includes('tee') || name.includes('sweater')) return 1.0;
+    if (subCat.includes('shirt') || subCat.includes('top') || subCat.includes('blouse') || subCat.includes('crew') || subCat.includes('button-down') || subCat.includes('sweater') || subCat.includes('tee')) return 1.0;
+    if (name.includes('shirt') || name.includes('top') || name.includes('blouse') || name.includes('tee') || name.includes('sweater') || name.includes('t-shirt') || name.includes('tank')) return 1.0;
     return 0.0;
   }
 
@@ -497,7 +553,13 @@ export function evaluateCategoryMatch(item, targetCategory) {
     return -1.0;
   }
 
-  // 6. Generic Category Lookup
+  // 7. Generic Category & Super-Family Lookup
+  const targetFam = getCategoryFamily(targetCategory);
+  const itemFam = getCategoryFamily(combined);
+  if (targetFam && itemFam && targetFam === itemFam) {
+    return 1.0;
+  }
+
   const def = CATEGORY_DEFINITIONS[targetCategory];
   if (def) {
     for (const f of def.forbidden) {
@@ -531,7 +593,14 @@ export function evaluateColorMatch(item, targetColor) {
   // Exact primary color match
   if (aliases.some((a) => itemColor === a || itemColor.includes(a))) return 1.0;
   // Secondary color match
-  if (aliases.some((a) => combined.includes(a))) return 0.85;
+  if (aliases.some((a) => combined.includes(a))) return 0.9;
+
+  // Family equivalence check (e.g. coral and red, navy and blue)
+  const targetFam = getColorFamily(targetColor);
+  const itemFam = getColorFamily(itemColor) || getColorFamily(name);
+  if (targetFam && itemFam && targetFam === itemFam) {
+    return 1.0;
+  }
 
   return 0.0;
 }
@@ -894,7 +963,7 @@ export async function executeRAGOutfitStylist({ userId, query = '', preferences 
 
     const isCategoryExact = !intent.targetCategory || catScore >= 0.8;
     const isColorExact = !intent.targetColor || colScore >= 0.8;
-    const isExact = hasDirectKeywordOrAttributeMatch && isCategoryExact && isColorExact && totalScore >= 68;
+    const isExact = isCategoryExact && isColorExact && (totalScore >= 50 || hasDirectKeywordOrAttributeMatch);
 
     if (isExact) {
       exactMatches.push({
@@ -904,6 +973,15 @@ export async function executeRAGOutfitStylist({ userId, query = '', preferences 
         matchReason: `Matches your requested ${intent.targetColor ? `${intent.targetColor} ` : ''}${intent.targetCategory || 'garment'}${intent.targetOccasion ? ` for ${intent.targetOccasion}` : ''}.`
       });
     } else if (totalScore >= 35) {
+      // If a specific color was requested, NEVER suggest completely non-matching colors (e.g. no beige or white when red was searched)
+      if (intent.targetColor && colScore < 0.75) {
+        continue;
+      }
+      // If exact matches already exist, do not flood with non-matching alternatives
+      if (exactMatches.length > 0 && colScore < 0.8) {
+        continue;
+      }
+
       // Build clear explanation of why this is a similar alternative
       const reasons = [];
       if (colScore >= 0.8 && !isCategoryExact) {

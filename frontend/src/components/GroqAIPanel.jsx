@@ -63,6 +63,71 @@ function Section({ title, icon: Icon, children }) {
   );
 }
 
+// ── Garment Category & Color Family Equivalence Maps ─────────────────────────
+const CATEGORY_FAMILIES_FE = {
+  tops: [
+    'top', 'tops', 't-shirt', 'tshirt', 'tee', 'shirt', 'blouse',
+    'crop top', 'croptop', 'tank', 'tank top', 'camisole', 'halter',
+    'sweater', 'pullover', 'sweatshirt', 'hoodie', 'tunic', 'kurti',
+    'kurta', 'polo', 'vest', 'casual top', 'peplum', 'cardigan'
+  ],
+  bottoms: [
+    'bottom', 'bottoms', 'trousers', 'trouser', 'pants', 'pant',
+    'jeans', 'jean', 'denim', 'slacks', 'chinos', 'shorts', 'short',
+    'leggings', 'skirt', 'skirts', 'cargo', 'joggers', 'palazzo', 'culottes'
+  ],
+  dresses: [
+    'dress', 'dresses', 'frock', 'frocks', 'gown', 'gowns', 'sundress',
+    'slip dress', 'cocktail dress', 'maxi dress', 'midi dress', 'mini dress',
+    'vest dress', 'anarkali', 'saree', 'sari', 'lehenga', 'jumpsuit', 'romper'
+  ],
+  outerwear: [
+    'outerwear', 'jacket', 'jackets', 'coat', 'coats', 'blazer', 'blazers',
+    'cardigan', 'trench', 'overcoat', 'shrug', 'parka', 'bomber', 'windbreaker'
+  ],
+  shoes: [
+    'shoes', 'shoe', 'footwear', 'sneakers', 'sneaker', 'boots', 'boot',
+    'heels', 'heel', 'pumps', 'pump', 'sandals', 'sandal', 'loafers',
+    'loafer', 'flats', 'juttis', 'jutti', 'slippers'
+  ],
+  accessories: [
+    'accessories', 'accessory', 'bag', 'bags', 'handbag', 'purse',
+    'clutch', 'tote', 'backpack', 'belt', 'jewelry', 'necklace'
+  ]
+};
+
+const COLOR_FAMILIES_FE = {
+  red: ['red', 'crimson', 'ruby', 'cherry', 'scarlet', 'burgundy', 'maroon', 'wine', 'coral', 'rust', 'terracotta', 'brick', 'vermilion'],
+  pink: ['pink', 'blush', 'rose', 'fuchsia', 'magenta', 'dusty rose', 'coral', 'hot pink', 'salmon'],
+  blue: ['blue', 'navy', 'navy blue', 'sky blue', 'royal blue', 'indigo', 'denim', 'cobalt', 'teal', 'cyan'],
+  green: ['green', 'emerald', 'olive', 'mint', 'forest green', 'sage'],
+  black: ['black', 'charcoal', 'noir', 'onyx'],
+  white: ['white', 'ivory', 'cream', 'off-white'],
+  grey: ['grey', 'gray', 'silver', 'slate'],
+  beige: ['beige', 'tan', 'camel', 'khaki', 'sand', 'nude'],
+  yellow: ['yellow', 'mustard', 'gold', 'amber'],
+  purple: ['purple', 'violet', 'lavender', 'plum', 'lilac'],
+  brown: ['brown', 'chocolate', 'coffee', 'mocha', 'caramel']
+};
+
+function getCategoryFamilyFE(str = '') {
+  if (!str) return null;
+  const s = String(str).toLowerCase().trim();
+  for (const [fam, members] of Object.entries(CATEGORY_FAMILIES_FE)) {
+    if (members.some((m) => s.includes(m) || m.includes(s))) return fam;
+  }
+  return null;
+}
+
+function getColorFamilyFE(str = '') {
+  if (!str) return null;
+  const s = String(str).toLowerCase().trim();
+  for (const [fam, members] of Object.entries(COLOR_FAMILIES_FE)) {
+    if (members.some((m) => s.includes(m) || m.includes(s))) return fam;
+  }
+  return null;
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function GroqAIPanel({
   isOpen,
@@ -156,16 +221,32 @@ export default function GroqAIPanel({
         : (Array.isArray(raw.seasons) && raw.seasons.length > 0 ? raw.seasons : ['Summer', 'Spring']);
       const material = raw.material || raw.fabric || (cat.toLowerCase().includes('dress') ? 'Silk & Chiffon' : 'Cotton');
 
-      // Cross-reference with user's uploaded wardrobe items (mongoClothes)
+      // Cross-reference with user's uploaded wardrobe items (mongoClothes) using category & color family matching
+      const scannedCatFam = getCategoryFamilyFE(cat);
+      const scannedColFam = getColorFamilyFE(colorName);
+
       const matchedWardrobeItem = (mongoClothes || []).find((item) => {
         const iName = (item.name || '').toLowerCase();
-        const iCat = (item.category || '').toLowerCase();
+        const iCat = (item.category || item.subCategory || '').toLowerCase();
         const iColor = (typeof item.color === 'string' ? item.color : item.color?.primary || '').toLowerCase();
         const iImg = (item.imageUrl || item.image || '').toLowerCase();
+        const combined = `${iName} ${iCat} ${iColor}`;
 
+        // 1. Direct image filename match
         if (imageFile?.name && iImg.includes(imageFile.name.toLowerCase())) return true;
-        if (iCat === cat.toLowerCase() && (iColor.includes(colorName.toLowerCase()) || iName.includes(colorName.toLowerCase()))) return true;
-        if (pattern && pattern.toLowerCase() !== 'plain' && iName.includes(pattern.toLowerCase()) && iCat === cat.toLowerCase()) return true;
+
+        // 2. Direct name match
+        if (raw.name && (iName.includes(raw.name.toLowerCase()) || raw.name.toLowerCase().includes(iName))) return true;
+
+        // 3. Category Family & Color Family Equivalence
+        const iCatFam = getCategoryFamilyFE(iCat) || getCategoryFamilyFE(iName);
+        const iColFam = getColorFamilyFE(iColor) || getColorFamilyFE(iName);
+
+        if (scannedCatFam && iCatFam && scannedCatFam === iCatFam) {
+          if (scannedColFam && iColFam && scannedColFam === iColFam) return true;
+          if (colorName && combined.includes(colorName.toLowerCase())) return true;
+        }
+
         return false;
       });
 
@@ -281,6 +362,19 @@ export default function GroqAIPanel({
           data.notFound = false;
           data.message = `Found exact match in your personal wardrobe: ${item.name}`;
         }
+
+        // Filter out non-matching alternatives (e.g. conflicting colors like beige or white when red was searched)
+        if (analysis?.color && Array.isArray(data.similarAlternatives)) {
+          const targetFam = getColorFamilyFE(analysis.color);
+          if (targetFam) {
+            data.similarAlternatives = data.similarAlternatives.filter((alt) => {
+              const altColor = typeof alt.color === 'string' ? alt.color : alt.color?.primary || '';
+              const altFam = getColorFamilyFE(altColor) || getColorFamilyFE(alt.name || '');
+              return altFam === targetFam;
+            });
+          }
+        }
+
         setRagResult(data);
         setTab('recommend');
       } else {
@@ -499,36 +593,18 @@ export default function GroqAIPanel({
                 <Sparkles size={20} color="white" />
               </div>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <h2
-                    style={{
-                      margin: 0,
-                      fontSize: '15px',
-                      fontWeight: 800,
-                      background: 'linear-gradient(90deg,#c4b5fd,#f9a8d4)',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent'
-                    }}
-                  >
-                    VR-RAG AI Fashion Stylist
-                  </h2>
-                  <span
-                    style={{
-                      fontSize: '9.5px',
-                      padding: '2px 6px',
-                      borderRadius: '999px',
-                      background: 'rgba(16,185,129,0.2)',
-                      color: '#6ee7b7',
-                      border: '1px solid rgba(16,185,129,0.3)',
-                      fontWeight: 700
-                    }}
-                  >
-                    MongoDB RAG
-                  </span>
-                </div>
-                <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#9d84bf' }}>
-                  Retrieval-Augmented Generation • Groq LLaMA-3
-                </p>
+                <h2
+                  style={{
+                    margin: 0,
+                    fontSize: '16px',
+                    fontWeight: 800,
+                    background: 'linear-gradient(90deg,#c4b5fd,#f9a8d4)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent'
+                  }}
+                >
+                  Style Fusion
+                </h2>
               </div>
             </div>
 
@@ -551,7 +627,7 @@ export default function GroqAIPanel({
           {/* Navigation Tabs */}
           <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
             {[
-              { id: 'recommend', label: '✨ RAG Outfit Stylist', icon: Sparkles },
+              { id: 'recommend', label: '✨ Outfit Stylist', icon: Sparkles },
               { id: 'scan', label: '📸 Cloth AI Vision Scanner', icon: Camera }
             ].map((t) => (
               <button
@@ -608,7 +684,7 @@ export default function GroqAIPanel({
                     marginBottom: '6px'
                   }}
                 >
-                  Ask Your RAG AI Stylist
+                  Ask Your AI Stylist
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
@@ -860,10 +936,10 @@ export default function GroqAIPanel({
                     }}
                   />
                   <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: '#c4b5fd' }}>
-                    Executing RAG Pipeline…
+                    Generating Outfit Recommendations…
                   </p>
                   <p style={{ margin: 0, fontSize: '11px', color: '#8b6fb5' }}>
-                    Retrieving MongoDB wardrobe → Disambiguating categories → Generating looks
+                    Analyzing MongoDB wardrobe → Matching categories → Generating looks
                   </p>
                 </div>
               )}
@@ -925,7 +1001,7 @@ export default function GroqAIPanel({
                             ✨ AI Fashion Stylist
                           </span>
                           <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '999px', background: 'rgba(139,92,246,0.3)', color: '#c4b5fd', fontWeight: 700 }}>
-                            {ragResult.generationSource ? 'Groq LLaMA-3' : 'RAG Engine'}
+                            {ragResult.generationSource ? 'Groq LLaMA-3' : 'AI Engine'}
                           </span>
                         </div>
                         <p style={{ margin: 0, fontSize: '12.5px', color: '#f8fafc', lineHeight: 1.45 }}>
@@ -979,7 +1055,7 @@ export default function GroqAIPanel({
                         </span>
                       </div>
                       <span style={{ fontSize: '10px', color: '#a7f3d0' }}>
-                        {ragResult.generationSource || 'MongoDB RAG Engine'}
+                        {ragResult.generationSource || 'MongoDB AI Engine'}
                       </span>
                     </div>
                   )}
@@ -1440,27 +1516,7 @@ export default function GroqAIPanel({
                 </div>
               )}
 
-              {/* Idle Informational Box */}
-              {!ragResult && !recLoading && !recError && (
-                <div
-                  style={{
-                    background: 'rgba(139,92,246,0.06)',
-                    borderRadius: '14px',
-                    padding: '16px',
-                    border: '1px solid rgba(139,92,246,0.15)'
-                  }}
-                >
-                  <p style={{ margin: '0 0 8px', fontSize: '12px', fontWeight: 800, color: '#c4b5fd' }}>
-                    🔍 How RAG Wardrobe AI Works:
-                  </p>
-                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '11.5px', color: '#9d84bf', lineHeight: 1.6 }}>
-                    <li><strong>1. Retrieves:</strong> Real clothes from your MongoDB Atlas database.</li>
-                    <li><strong>2. Augments:</strong> Fashion color harmony, weather rules, and unworn items.</li>
-                    <li><strong>3. Generates:</strong> Exact outfit combinations with zero hallucination.</li>
-                    <li><strong>4. VR Sync:</strong> Immediately dresses the photorealistic female avatar in 3D!</li>
-                  </ul>
-                </div>
-              )}
+
             </div>
           )}
 

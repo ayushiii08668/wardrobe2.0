@@ -2,7 +2,13 @@ import mongoose from 'mongoose';
 import ClothingItem from '../models/ClothingItem.js';
 import OutfitHistory from '../models/OutfitHistory.js';
 import { requestOutfitRecommendations } from '../services/aiRecommendationService.js';
-import { executeRAGOutfitStylist, executeRAGImageSearch } from '../services/ragService.js';
+import {
+  executeRAGOutfitStylist,
+  executeRAGImageSearch,
+  getCategoryFamily,
+  getColorFamily,
+  formatItemRecord
+} from '../services/ragService.js';
 import { recognizeClothingImage } from '../services/aiRecognitionService.js';
 
 /**
@@ -82,43 +88,70 @@ export const searchClothingByImage = async (req, res, next) => {
       }
     }
 
-    // Direct MongoDB match check: Check if user has an item in their wardrobe matching this name or category + color
-    const queryConditions = [];
-    if (features.name && features.name !== 'Detected Garment') {
-      const safeName = features.name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-      queryConditions.push({ name: { $regex: new RegExp(safeName, 'i') } });
-    }
-    if (features.category && features.dominantColor) {
-      queryConditions.push({
-        $and: [
-          { category: { $regex: new RegExp(features.category, 'i') } },
-          { color: { $regex: new RegExp(features.dominantColor, 'i') } }
-        ]
-      });
-    }
+    // Fetch user's stored wardrobe items to perform smart category & chromatic family matching
+    const filter = userId ? { userId } : {};
+    const userWardrobe = await ClothingItem.find(filter).lean();
 
-    let directWardrobeMatches = [];
-    if (queryConditions.length > 0) {
-      const filter = { $or: queryConditions };
-      if (userId) filter.userId = userId;
-      directWardrobeMatches = await ClothingItem.find(filter).lean();
-    }
+    const targetCatFam = getCategoryFamily(features.category || features.name || '');
+    const targetColFam = getColorFamily(features.dominantColor || features.color || '');
+
+    const directWardrobeMatches = userWardrobe.filter((item) => {
+      const iName = (item.name || '').toLowerCase();
+      const iCat = (item.category || item.subCategory || '').toLowerCase();
+      const iColor = (typeof item.color === 'string' ? item.color : item.color?.primary || '').toLowerCase();
+      const iDesc = (item.description || '').toLowerCase();
+      const combined = `${iName} ${iCat} ${iDesc} ${iColor}`;
+
+      // 1. Direct name match
+      if (
+        features.name &&
+        features.name !== 'Detected Garment' &&
+        (iName.includes(features.name.toLowerCase()) || features.name.toLowerCase().includes(iName))
+      ) {
+        return true;
+      }
+
+      // 2. Category Family & Color Family Match
+      const itemCatFam = getCategoryFamily(iCat) || getCategoryFamily(iName);
+      const itemColFam = getColorFamily(iColor) || getColorFamily(iName);
+
+      if (targetCatFam && itemCatFam && targetCatFam === itemCatFam) {
+        if (targetColFam && itemColFam && targetColFam === itemColFam) {
+          return true;
+        }
+        if (features.dominantColor && combined.includes(features.dominantColor.toLowerCase())) {
+          return true;
+        }
+      }
+
+      return false;
+    });
 
     const result = await executeRAGImageSearch({ features, userId });
 
     // If direct wardrobe matches exist, merge them at the top of exactMatches
     if (directWardrobeMatches.length > 0) {
-      const existingIds = new Set((result.exactMatches || []).map(m => (m._id || m.id).toString()));
+      const formattedDirect = directWardrobeMatches.map((item) => formatItemRecord(item));
+      const existingIds = new Set((result.exactMatches || []).map((m) => (m._id || m.id).toString()));
       const newExact = [...(result.exactMatches || [])];
-      directWardrobeMatches.forEach(item => {
-        if (!existingIds.has(item._id.toString())) {
+      formattedDirect.forEach((item) => {
+        if (!existingIds.has((item._id || item.id).toString())) {
           newExact.unshift(item);
-          existingIds.add(item._id.toString());
+          existingIds.add((item._id || item.id).toString());
         }
       });
       result.exactMatches = newExact;
       result.notFound = false;
-      result.message = `Found ${newExact.length} exact match${newExact.length > 1 ? 'es' : ''} in your personal wardrobe.`;
+      result.message = `Found ${newExact.length} exact match${newExact.length > 1 ? 'es' : ''} in your personal wardrobe: ${newExact[0].name}`;
+    }
+
+    // Filter out any non-matching alternatives (e.g. conflicting colors when a color was requested)
+    if (targetColFam && Array.isArray(result.similarAlternatives)) {
+      result.similarAlternatives = result.similarAlternatives.filter((alt) => {
+        const altColor = typeof alt.color === 'string' ? alt.color : alt.color?.primary || '';
+        const altFam = getColorFamily(altColor) || getColorFamily(alt.name || '');
+        return altFam === targetColFam;
+      });
     }
 
     return res.status(200).json(result);
