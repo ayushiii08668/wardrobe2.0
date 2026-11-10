@@ -33,6 +33,7 @@ export async function startSession(
     mirror: true,
     ...(cb.fast ? { speed: "fast" as const } : {}),
     onRemoteStream: cb.onRemoteStream,
+    onConnectionChange: cb.onState,
     onCapacityWait: cb.onCapacityWait
       ? (wait: unknown) => cb.onCapacityWait?.(capacityWaitMs(wait))
       : undefined,

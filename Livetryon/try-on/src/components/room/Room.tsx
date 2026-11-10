@@ -30,6 +30,14 @@ export default function Room() {
   const wardrobe = useWardrobeStore()
 
   const [phase, setPhase] = useState<Phase>("NO_KEY")
+  const phaseRef = useRef<Phase>("NO_KEY")
+  const setPhaseWithRef = useCallback((p: Phase | ((prev: Phase) => Phase)) => {
+    setPhase((prev) => {
+      const next = typeof p === "function" ? p(prev) : p
+      phaseRef.current = next
+      return next
+    })
+  }, [])
   const [camera, setCamera] = useState<MediaStream | null>(null)
   const [remote, setRemote] = useState<MediaStream | null>(null)
   const [error, setError] = useState<MappedError | null>(null)
@@ -61,7 +69,7 @@ export default function Room() {
   }, [])
 
   const beginAligning = useCallback(async () => {
-    setPhase("ALIGNING")
+    setPhaseWithRef("ALIGNING")
     setRemote(null)
     remoteRef.current = null
     setBanner(null)
@@ -79,31 +87,35 @@ export default function Room() {
     } catch (e) {
       setError(mapError("CAMERA_NOT_ALLOWED"))
     }
-  }, [])
+  }, [setPhaseWithRef])
 
   useEffect(() => {
     if (!loaded) return
     if (!apiKey) {
-      setPhase((prev) => (prev === "NO_KEY" ? prev : "NO_KEY"))
+      setPhaseWithRef((prev) => (prev === "NO_KEY" ? prev : "NO_KEY"))
       return
     }
-    setPhase((prev) => {
+    setPhaseWithRef((prev) => {
       if (prev === "NO_KEY" || prev === "ENDED") {
         void beginAligning()
         return "ALIGNING"
       }
       return prev
     })
-  }, [loaded, apiKey, beginAligning])
+  }, [loaded, apiKey, beginAligning, setPhaseWithRef])
 
   const handleState = useCallback(
     (state: "connecting" | "connected" | "generating" | "reconnecting" | "disconnected") => {
+      console.log("[DecartRoom] connectionChange state:", state, "remoteStream:", !!remoteRef.current)
       stateRef.current = state
       switch (state) {
         case "generating":
-          // The laser ends only once generating is reached AND a remote frame is up
+          setPhaseWithRef("LIVE")
+          setBanner(null)
+          break
+        case "connected":
           if (remoteRef.current) {
-            setPhase("LIVE")
+            setPhaseWithRef("LIVE")
             setBanner(null)
           }
           break
@@ -111,7 +123,7 @@ export default function Room() {
           setBanner("Reconnecting — the stream pauses briefly")
           break
         case "disconnected":
-          setPhase((prev) => {
+          setPhaseWithRef((prev) => {
             if (prev !== "ENDED") {
               setRemote(null)
               remoteRef.current = null
@@ -126,7 +138,7 @@ export default function Room() {
           break
       }
     },
-    []
+    [setPhaseWithRef]
   )
 
   const connect = useCallback(
@@ -137,10 +149,27 @@ export default function Room() {
         return
       }
       connectingRef.current = true
-      setPhase("SCANNING")
+      setPhaseWithRef("SCANNING")
       setError(null)
       setBanner(null)
       stateRef.current = "connecting"
+
+      // Watchdog timer: If stuck in SCANNING for > 25 seconds with no stream
+      const watchdog = setTimeout(() => {
+        if (phaseRef.current === "SCANNING" && !remoteRef.current) {
+          console.warn("[DecartRoom] Connection timed out after 25s in SCANNING")
+          setError({
+            title: "Connection Timed Out",
+            detail: "Decart AI live stream is taking too long to connect. Please check your network/firewall, or try Fast mode.",
+            action: "retry"
+          })
+          setPhaseWithRef("ALIGNING")
+          setRemote(null)
+          remoteRef.current = null
+          connectingRef.current = false
+        }
+      }, 25000)
+
       try {
         if (rtRef.current) {
           try { rtRef.current.disconnect() } catch {}
@@ -149,19 +178,24 @@ export default function Room() {
         const rt = await startSession(cameraRef.current, garment, {
           fast: fastRef.current,
           onRemoteStream: (s) => {
+            console.log("[DecartRoom] onRemoteStream received track count:", s?.getTracks()?.length)
             remoteRef.current = s
             setRemote(s)
-            // remote may arrive after the generating tick
-            if (stateRef.current === "generating") {
-              setPhase("LIVE")
+            setPhaseWithRef("LIVE")
+            setBanner(null)
+          },
+          onState: (state) => handleState(state),
+          onTick: (seconds) => {
+            useUsageStore.getState().add(seconds)
+            if (phaseRef.current !== "LIVE") {
+              setPhaseWithRef("LIVE")
               setBanner(null)
             }
           },
-          onState: (state) => handleState(state),
-          onTick: (seconds) => useUsageStore.getState().add(seconds),
           onCapacityWait: (retryAfterMs) =>
             setBanner(`Server busy — retrying in ${Math.max(1, Math.round(retryAfterMs / 1000))} s`),
           onError: (code, message) => {
+            clearTimeout(watchdog)
             console.error('[DecartRoom] session onError:', code, message)
             if (code === 'AbortError' || message?.includes('Stale connect')) return
             const mapped = mapError(code)
@@ -169,7 +203,7 @@ export default function Room() {
               mapped.detail = `${mapped.detail} (${message})`
             }
             setError(mapped)
-            setPhase("ALIGNING")
+            setPhaseWithRef("ALIGNING")
             setRemote(null)
             remoteRef.current = null
             useUsageStore.getState().reset()
@@ -178,7 +212,14 @@ export default function Room() {
         })
         rtRef.current = rt
         wornRef.current = true
+        clearTimeout(watchdog)
+
+        if (remoteRef.current || stateRef.current === "generating" || stateRef.current === "connected") {
+          setPhaseWithRef("LIVE")
+          setBanner(null)
+        }
       } catch (e) {
+        clearTimeout(watchdog)
         console.error('[DecartRoom] startSession catch:', e)
         const msg = (e as any)?.message || String(e)
         if (msg.includes('Stale connect') || (e as any)?.name === 'AbortError') {
@@ -207,7 +248,7 @@ export default function Room() {
           }
         }
         setError(mapped)
-        setPhase("ALIGNING")
+        setPhaseWithRef("ALIGNING")
         setRemote(null)
         remoteRef.current = null
         useUsageStore.getState().reset()
@@ -216,7 +257,7 @@ export default function Room() {
         connectingRef.current = false
       }
     },
-    [apiKey, handleState]
+    [apiKey, handleState, setPhaseWithRef]
   )
 
   const onPickFile = useCallback(
@@ -224,14 +265,14 @@ export default function Room() {
       const garment = await resolveGarment({ blob: file, name: file.name })
       wardrobe.add(garment)
       wardrobe.setCurrent(garment.id)
-      if (wornRef.current && rtRef.current && phase === "LIVE") {
+      if (wornRef.current && rtRef.current && phaseRef.current === "LIVE") {
         // already LIVE → atomic swap, no reconnect
         await swapGarment(rtRef.current, garment)
       } else {
         await connect(garment)
       }
     },
-    [connect, phase, wardrobe]
+    [connect, wardrobe]
   )
 
   const loadGarmentFromUrl = useCallback(
@@ -255,7 +296,7 @@ export default function Room() {
         })
         wardrobe.add(garment)
         wardrobe.setCurrent(garment.id)
-        if (wornRef.current && rtRef.current && phase === "LIVE") {
+        if (wornRef.current && rtRef.current && phaseRef.current === "LIVE") {
           await swapGarment(rtRef.current, garment)
         } else {
           await connect(garment)
@@ -264,7 +305,7 @@ export default function Room() {
         console.warn("Failed to load pending garment from URL:", err)
       }
     },
-    [connect, phase, wardrobe]
+    [connect, wardrobe]
   )
 
   useEffect(() => {
@@ -296,10 +337,10 @@ export default function Room() {
     rtRef.current = null
     setRemote(null)
     remoteRef.current = null
-    setPhase("ENDED")
+    setPhaseWithRef("ENDED")
     useUsageStore.getState().reset()
     wornRef.current = false
-  }, [])
+  }, [setPhaseWithRef])
 
   const toggleFast = useCallback(async () => {
     const next = !fastRef.current
@@ -414,6 +455,20 @@ export default function Room() {
                     Open setup
                   </Button>
                 )}
+                {error.action === "retry" && (
+                  <Button
+                    className="mt-2"
+                    onClick={() => {
+                      setError(null)
+                      if (wardrobe.current) {
+                        void connect(wardrobe.current)
+                      } else {
+                        void beginAligning()
+                      }
+                    }}>
+                    Try again
+                  </Button>
+                )}
               </div>
             )}
           </>
@@ -446,7 +501,7 @@ export default function Room() {
                 key={g.id}
                 onClick={async () => {
                   wardrobe.setCurrent(g.id)
-                  if (wornRef.current && rtRef.current && phase === "LIVE") {
+                  if (wornRef.current && rtRef.current && phaseRef.current === "LIVE") {
                     await swapGarment(rtRef.current, g)
                   } else {
                     await connect(g)
