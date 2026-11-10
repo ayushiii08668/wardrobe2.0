@@ -46,6 +46,7 @@ export default function Room() {
   )
   const fastRef = useRef(false)
   const wornRef = useRef(false)
+  const connectingRef = useRef(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -131,11 +132,20 @@ export default function Room() {
   const connect = useCallback(
     async (garment: Parameters<typeof startSession>[1]) => {
       if (!cameraRef.current || !apiKey) return
+      if (connectingRef.current) {
+        console.warn("[DecartRoom] Connection already in flight, skipping duplicate call")
+        return
+      }
+      connectingRef.current = true
       setPhase("SCANNING")
       setError(null)
       setBanner(null)
       stateRef.current = "connecting"
       try {
+        if (rtRef.current) {
+          try { rtRef.current.disconnect() } catch {}
+          rtRef.current = null
+        }
         const rt = await startSession(cameraRef.current, garment, {
           fast: fastRef.current,
           onRemoteStream: (s) => {
@@ -153,6 +163,7 @@ export default function Room() {
             setBanner(`Server busy — retrying in ${Math.max(1, Math.round(retryAfterMs / 1000))} s`),
           onError: (code, message) => {
             console.error('[DecartRoom] session onError:', code, message)
+            if (code === 'AbortError' || message?.includes('Stale connect')) return
             const mapped = mapError(code)
             if (message) {
               mapped.detail = `${mapped.detail} (${message})`
@@ -169,8 +180,12 @@ export default function Room() {
         wornRef.current = true
       } catch (e) {
         console.error('[DecartRoom] startSession catch:', e)
-        const code = (e as any)?.code
         const msg = (e as any)?.message || String(e)
+        if (msg.includes('Stale connect') || (e as any)?.name === 'AbortError') {
+          console.warn('[DecartRoom] Connect attempt was aborted/superseded, ignoring Stale message')
+          return
+        }
+        const code = (e as any)?.code
         let mapped = code ? mapError(code) : null
         if (!mapped) {
           if (msg.includes('401') || msg.includes('403') || msg.includes('key')) {
@@ -197,6 +212,8 @@ export default function Room() {
         remoteRef.current = null
         useUsageStore.getState().reset()
         wornRef.current = false
+      } finally {
+        connectingRef.current = false
       }
     },
     [apiKey, handleState]
@@ -316,16 +333,6 @@ export default function Room() {
       window.removeEventListener("beforeunload", cleanup)
     }
   }, [])
-
-  const cleanupOnHide = useCallback(() => {
-    if (document.visibilityState === "hidden" && rtRef.current) {
-      endSession()
-    }
-  }, [endSession])
-  useEffect(() => {
-    document.addEventListener("visibilitychange", cleanupOnHide)
-    return () => document.removeEventListener("visibilitychange", cleanupOnHide)
-  }, [cleanupOnHide])
 
   if (!loaded) {
     return <div className="flex h-screen w-full items-center justify-center text-sm text-muted">Loading…</div>
