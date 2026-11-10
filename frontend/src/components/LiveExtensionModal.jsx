@@ -103,18 +103,10 @@ export default function LiveExtensionModal({
     // Send a message via window postMessage as well for maximum compatibility
     window.postMessage({ type: 'WARDROBEWISE_LIVE_TRYON', payload: tryOnPayload }, '*');
 
-    // Directly open the Chrome extension room tab
-    const roomUrl = `chrome-extension://${extensionId || 'hnhhndbjigjpkmabmpceogcanonfjhpk'}/tabs/room.html`;
-    try {
-      window.open(roomUrl, '_blank');
-    } catch (err) {
-      console.warn('Could not open tab directly:', err);
-    }
-
     setTimeout(() => {
       setIsLaunching(false);
-      showToast?.(`Opening Live Try-On Room for "${garmentName}"!`, 'success');
-    }, 600);
+      showToast?.(`Sent "${garmentName}" to Try-On Anywear!`, 'success');
+    }, 700);
   };
 
   return (
@@ -292,74 +284,54 @@ export default function LiveExtensionModal({
             </div>
 
             {/* Launch Action */}
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={handleLaunchTryOn}
-                disabled={isLaunching || !selectedGarment}
-                style={{
-                  flex: 1,
-                  padding: '13px 16px',
-                  borderRadius: '12px',
-                  border: 'none',
-                  background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)',
-                  color: '#fff',
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  cursor: isLaunching ? 'wait' : 'pointer',
-                  boxShadow: '0 8px 20px -4px rgba(236, 72, 153, 0.4)',
-                  transition: 'all 0.2s',
-                  opacity: selectedGarment ? 1 : 0.6
-                }}
-              >
-                <Zap size={16} />
-                <span>{isLaunching ? 'Opening Stream...' : 'Launch Live Try-On'}</span>
-              </button>
+            <button
+              onClick={handleLaunchTryOn}
+              disabled={isLaunching || !selectedGarment}
+              style={{
+                width: '100%',
+                padding: '14px 20px',
+                borderRadius: '14px',
+                border: 'none',
+                background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)',
+                color: '#fff',
+                fontSize: '15px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                cursor: isLaunching ? 'wait' : 'pointer',
+                boxShadow: '0 10px 25px -5px rgba(236, 72, 153, 0.4)',
+                transition: 'all 0.2s',
+                opacity: selectedGarment ? 1 : 0.6
+              }}
+            >
+              <Zap size={18} />
+              <span>{isLaunching ? 'Sending Garment to AI...' : 'Wear in Live Camera Extension'}</span>
+            </button>
 
-              <button
-                onClick={() => window.open(`chrome-extension://${extensionId}/tabs/room.html`, '_blank')}
-                style={{
-                  padding: '13px 14px',
-                  borderRadius: '12px',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  color: '#e2e8f0',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  cursor: 'pointer'
-                }}
-                title="Open Live Fitting Room in new tab"
-              >
-                <ExternalLink size={15} />
-                <span>Open Room</span>
-              </button>
-            </div>
-
-            {/* Right click tip */}
+            {/* Quick action tip */}
             <div
               style={{
                 display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 14px',
-                borderRadius: '10px',
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
+                flexDirection: 'column',
+                gap: '6px',
+                padding: '12px 14px',
+                borderRadius: '12px',
+                background: 'rgba(236, 72, 153, 0.08)',
+                border: '1px solid rgba(236, 72, 153, 0.25)',
                 fontSize: '12px',
-                color: '#94a3b8'
+                color: '#fdf2f8'
               }}
             >
-              <Info size={15} style={{ color: '#38bdf8', flexShrink: 0 }} />
-              <span>
-                Tip: You can also <strong>right-click</strong> any dress in your closet and select{' '}
-                <strong style={{ color: '#ec4899' }}>"Try this on me"</strong> to open it immediately!
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#f472b6' }}>
+                <Sparkles size={15} />
+                <span>Easiest Way to Try On:</span>
+              </div>
+              <p style={{ margin: 0, color: '#cbd5e1', lineHeight: 1.5 }}>
+                Simply <strong>right-click</strong> the dress picture in your closet and select{' '}
+                <strong style={{ color: '#ec4899' }}>"Try this on me"</strong> in the browser menu!
+              </p>
             </div>
           </div>
 

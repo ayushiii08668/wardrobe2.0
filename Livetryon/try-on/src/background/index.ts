@@ -14,7 +14,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   })
 })
 
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
   if (info.menuItemId === "try-on-anywear" && info.srcUrl) {
     try {
       await chrome.storage.local.set({
@@ -24,11 +24,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           category: "top"
         }
       })
-      if (tab?.id) {
-        await chrome.sidePanel.open({ tabId: tab.id })
-      } else {
-        chrome.tabs.create({ url: chrome.runtime.getURL("tabs/room.html") })
-      }
+      chrome.tabs.create({ url: chrome.runtime.getURL("tabs/room.html") })
     } catch {
       chrome.tabs.create({ url: chrome.runtime.getURL("tabs/room.html") })
     }
@@ -43,13 +39,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           if (msg.garment) {
             await chrome.storage.local.set({ pendingGarment: msg.garment })
           }
-          if (_sender.tab?.id) {
-            await chrome.sidePanel.open({ tabId: _sender.tab.id }).catch(() => {
-              chrome.tabs.create({ url: chrome.runtime.getURL("tabs/room.html") })
-            })
-          } else {
-            chrome.tabs.create({ url: chrome.runtime.getURL("tabs/room.html") })
-          }
+          chrome.tabs.create({ url: chrome.runtime.getURL("tabs/room.html") })
           sendResponse({ ok: true })
         } catch (e) {
           chrome.tabs.create({ url: chrome.runtime.getURL("tabs/room.html") })
