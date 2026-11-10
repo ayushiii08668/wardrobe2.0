@@ -3,9 +3,14 @@ import { mintClientToken, MintError } from "./mint-token"
 
 export {} // background entrypoint
 
+function getSafeExtensionUrl(path: string): string {
+  const url = chrome.runtime.getURL(path)
+  return url.replace(/^extension:\/\//, "chrome-extension://")
+}
+
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
-    chrome.tabs.create({ url: chrome.runtime.getURL("tabs/onboarding.html") })
+    chrome.tabs.create({ url: getSafeExtensionUrl("tabs/onboarding.html") })
   }
   chrome.contextMenus.create({
     id: "try-on-anywear",
@@ -24,9 +29,9 @@ chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
           category: "top"
         }
       })
-      chrome.tabs.create({ url: chrome.runtime.getURL("tabs/room.html") })
+      chrome.tabs.create({ url: getSafeExtensionUrl("tabs/room.html") })
     } catch {
-      chrome.tabs.create({ url: chrome.runtime.getURL("tabs/room.html") })
+      chrome.tabs.create({ url: getSafeExtensionUrl("tabs/room.html") })
     }
   }
 })
@@ -39,10 +44,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           if (msg.garment) {
             await chrome.storage.local.set({ pendingGarment: msg.garment })
           }
-          chrome.tabs.create({ url: chrome.runtime.getURL("tabs/room.html") })
+          chrome.tabs.create({ url: getSafeExtensionUrl("tabs/room.html") })
           sendResponse({ ok: true })
         } catch (e) {
-          chrome.tabs.create({ url: chrome.runtime.getURL("tabs/room.html") })
+          chrome.tabs.create({ url: getSafeExtensionUrl("tabs/room.html") })
           sendResponse({ ok: true })
         }
       })()

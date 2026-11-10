@@ -389,7 +389,7 @@ export default function Room() {
           </p>
           <Button
             onClick={() =>
-              window.open(chrome.runtime.getURL("tabs/onboarding.html"), "_blank")
+              window.open(chrome.runtime.getURL("tabs/onboarding.html").replace(/^extension:\/\//, "chrome-extension://"), "_blank")
             }>
             Set up
           </Button>
@@ -451,7 +451,7 @@ export default function Room() {
                 {error.action === "setup" && (
                   <Button
                     className="mt-2"
-                    onClick={() => window.open(chrome.runtime.getURL("tabs/onboarding.html"), "_blank")}>
+                    onClick={() => window.open(chrome.runtime.getURL("tabs/onboarding.html").replace(/^extension:\/\//, "chrome-extension://"), "_blank")}>
                     Open setup
                   </Button>
                 )}
