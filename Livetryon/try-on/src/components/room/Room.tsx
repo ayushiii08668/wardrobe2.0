@@ -296,9 +296,46 @@ export default function Room() {
     [connect, wardrobe]
   )
 
+  const addGarmentToTrayOnly = useCallback(
+    async (item: { imageUrl: string; name?: string; category?: string; id?: string }) => {
+      try {
+        if (!item?.imageUrl) return
+        // Do not add broken or test items
+        if (item.name?.toLowerCase().includes("unauthenticated")) return
+        const exists = wardrobe.items.some((w) => w.sourceUrl === item.imageUrl || (w.name === item.name && item.name !== "My Clothing"))
+        if (exists) return
+
+        const res = await fetch(item.imageUrl)
+        const blob = await res.blob()
+        if (!blob || blob.size === 0) return
+
+        const cat = (item.category || "").toLowerCase()
+        const region =
+          cat.includes("dress") || cat.includes("gown")
+            ? ("outfit" as const)
+            : cat.includes("bottom") || cat.includes("pant") || cat.includes("skirt")
+              ? ("bottom" as const)
+              : ("top" as const)
+
+        const garment = await resolveGarment({
+          blob,
+          name: item.name || "My Clothing",
+          region,
+          sourceUrl: item.imageUrl
+        })
+        if (item.id) garment.id = item.id
+        wardrobe.add(garment)
+      } catch (err) {
+        console.warn("[DecartRoom] Could not preload item to tray:", err)
+      }
+    },
+    [wardrobe]
+  )
+
   const loadGarmentFromUrl = useCallback(
     async (item: { imageUrl: string; name?: string; category?: string }) => {
       try {
+        if (!item?.imageUrl || item.name?.toLowerCase().includes("unauthenticated")) return
         const res = await fetch(item.imageUrl)
         const blob = await res.blob()
         const cat = (item.category || "").toLowerCase()
@@ -333,6 +370,16 @@ export default function Room() {
     if (!apiKey) return
     const checkPending = async () => {
       try {
+        // Load user's manually uploaded clothes from WardrobeWise
+        const storedWardrobe = await chrome?.storage?.local?.get("wardrobeWiseGarments")
+        if (storedWardrobe?.wardrobeWiseGarments && Array.isArray(storedWardrobe.wardrobeWiseGarments)) {
+          for (const item of storedWardrobe.wardrobeWiseGarments) {
+            if (item?.imageUrl) {
+              await addGarmentToTrayOnly(item)
+            }
+          }
+        }
+
         const stored = await chrome?.storage?.local?.get("pendingGarment")
         if (stored?.pendingGarment?.imageUrl) {
           await chrome.storage.local.remove("pendingGarment")
@@ -342,7 +389,14 @@ export default function Room() {
     }
     void checkPending()
 
-    const listener = (changes: Record<string, chrome.storage.StorageChange>) => {
+    const listener = async (changes: Record<string, chrome.storage.StorageChange>) => {
+      if (changes.wardrobeWiseGarments?.newValue && Array.isArray(changes.wardrobeWiseGarments.newValue)) {
+        for (const item of changes.wardrobeWiseGarments.newValue) {
+          if (item?.imageUrl) {
+            await addGarmentToTrayOnly(item)
+          }
+        }
+      }
       if (changes.pendingGarment?.newValue?.imageUrl) {
         const newItem = changes.pendingGarment.newValue
         void chrome.storage.local.remove("pendingGarment")
@@ -351,7 +405,7 @@ export default function Room() {
     }
     chrome?.storage?.onChanged?.addListener(listener)
     return () => chrome?.storage?.onChanged?.removeListener(listener)
-  }, [apiKey, loadGarmentFromUrl])
+  }, [apiKey, loadGarmentFromUrl, addGarmentToTrayOnly])
 
   const endSession = useCallback(() => {
     stopSession(rtRef.current, null)

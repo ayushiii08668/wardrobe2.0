@@ -41,10 +41,28 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     case "TRY_ON_GARMENT_FROM_PAGE": {
       ;(async () => {
         try {
-          if (msg.garment) {
-            await chrome.storage.local.set({ pendingGarment: msg.garment })
+          const payload = msg.garment || msg.payload
+          if (payload?.wardrobeList && Array.isArray(payload.wardrobeList)) {
+            await chrome.storage.local.set({ wardrobeWiseGarments: payload.wardrobeList })
           }
-          chrome.tabs.create({ url: getSafeExtensionUrl("tabs/room.html") })
+          if (payload?.selectedGarment) {
+            await chrome.storage.local.set({ pendingGarment: payload.selectedGarment })
+          } else if (payload?.imageUrl) {
+            await chrome.storage.local.set({ pendingGarment: payload })
+          }
+
+          // Check if room tab is already open to avoid duplicate tabs / session limit error
+          const tabs = await chrome.tabs.query({})
+          const targetSuffix = "tabs/room.html"
+          const existing = tabs.find((t) => t.url && t.url.includes(targetSuffix))
+          if (existing?.id) {
+            await chrome.tabs.update(existing.id, { active: true })
+            if (existing.windowId) {
+              await chrome.windows.update(existing.windowId, { focused: true })
+            }
+          } else {
+            await chrome.tabs.create({ url: getSafeExtensionUrl("tabs/room.html") })
+          }
           sendResponse({ ok: true })
         } catch (e) {
           chrome.tabs.create({ url: getSafeExtensionUrl("tabs/room.html") })

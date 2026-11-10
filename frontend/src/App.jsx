@@ -128,7 +128,21 @@ export default function App() {
   const dpadTimerRef = useRef(null);
 
   // --- Upload Cloth Feature ---
-  const [uploadedClothes, setUploadedClothes] = useState([]);
+  const [uploadedClothes, setUploadedClothes] = useState(() => {
+    try {
+      const saved = localStorage.getItem('wardrobewise_manual_uploads');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('wardrobewise_manual_uploads', JSON.stringify(uploadedClothes));
+    } catch {}
+  }, [uploadedClothes]);
+
   const [isUploadingCloth, setIsUploadingCloth] = useState(false);
   const [uploadStatus, setUploadStatus]       = useState('');
   const [toast, setToast]                     = useState(null);
@@ -860,12 +874,68 @@ export default function App() {
     }
   };
 
+  // --- Direct Live Try-On Launcher: Opens Try-On Room tab in Chrome with user's clothes ---
+  const handleDirectLiveTryOn = useCallback(() => {
+    // Only user's manually uploaded clothes and user-created pieces
+    const validManualClothes = [
+      ...uploadedClothes,
+      ...backendWardrobe.filter(
+        (b) =>
+          (b.brand === 'My Closet' || b.isUserUploaded) &&
+          !b.name?.toLowerCase().includes('unauthenticated') &&
+          (b.image || b.imageUrl)
+      )
+    ];
+
+    const activeItem = selectedProduct || validManualClothes[0] || null;
+
+    const payload = {
+      openOnly: true,
+      selectedGarment: activeItem
+        ? {
+            id: activeItem.id || activeItem._id || activeItem.backendId,
+            name: activeItem.name || 'My Clothing',
+            imageUrl: activeItem.image || activeItem.imageUrl || '',
+            category: activeItem.category || 'dresses'
+          }
+        : null,
+      wardrobeList: validManualClothes
+        .map((item) => ({
+          id: item.id || item._id || item.backendId,
+          name: item.name || 'My Clothing',
+          imageUrl: item.image || item.imageUrl || '',
+          category: item.category || 'dresses'
+        }))
+        .filter((g) => g.imageUrl && !g.imageUrl.includes('undefined'))
+    };
+
+    window.dispatchEvent(new CustomEvent('WARDROBEWISE_LIVE_TRYON', { detail: payload }));
+    window.postMessage({ type: 'WARDROBEWISE_LIVE_TRYON', payload }, '*');
+
+    showToast('Opening Decart AI Live Try-On Room in Chrome…', 'info');
+  }, [uploadedClothes, backendWardrobe, selectedProduct, showToast]);
+
   // Filtered Products for Right Wardrobe Sidebar
   const displayedItems = useMemo(() => {
-    // If in 'wardrobe' tab: show ONLY clothes stored in MongoDB (+ any active uploaded clothes)
-    // If in 'catalog' tab: show boutique catalog products (PRODUCTS)
+    // If in 'wardrobe' tab: show ONLY clothes uploaded by the user manually (+ any active uploaded clothes)
+    // Exclude dummy test/seed items like "Unauthenticated Shirt", seed hats, bags, and shoes
     let sourceList = panelTab === 'wardrobe'
-      ? [...uploadedClothes.filter(u => !backendWardrobe.some(b => b.backendId === u.backendId)), ...backendWardrobe]
+      ? (() => {
+          const manual = [...uploadedClothes];
+          const validBackend = backendWardrobe.filter((item) => {
+            if (!item) return false;
+            const name = (item.name || '').toLowerCase();
+            if (name.includes('unauthenticated') || name.includes('test')) return false;
+            if (!item.image && !item.imageUrl) return false;
+            if (item.brand === 'My Closet' || item.isUserUploaded) return true;
+            return manual.length === 0 && item.category !== 'shoes' && item.category !== 'accessories';
+          });
+          const combined = [
+            ...manual.filter((u) => !validBackend.some((b) => b.backendId === u.backendId)),
+            ...validBackend
+          ];
+          return combined;
+        })()
       : PRODUCTS;
 
     if (activeCategory !== 'all') {
@@ -988,9 +1058,9 @@ export default function App() {
         {/* Right Controls */}
         <div className="topbar-actions">
           <button
-            onClick={() => setIsLiveCameraTryOnOpen(true)}
+            onClick={handleDirectLiveTryOn}
             className="topbar-pill-btn highlight-live-tryon"
-            title="Open Live Video Virtual Try-On (Decart AI Chrome Extension)"
+            title="Open Live Video Virtual Try-On directly in Chrome Extension"
             style={{
               background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.35), rgba(168, 85, 247, 0.35))',
               borderColor: 'rgba(244, 114, 182, 0.65)',
@@ -1102,8 +1172,8 @@ export default function App() {
         </button>
         <button
           className="dock-btn highlight-live-tryon-dock"
-          title="Live AI Try-On (Webcam Extension)"
-          onClick={() => setIsLiveCameraTryOnOpen(true)}
+          title="Open Live AI Try-On directly in Chrome"
+          onClick={handleDirectLiveTryOn}
           style={{
             background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.28), rgba(168, 85, 247, 0.28))',
             borderColor: 'rgba(244, 114, 182, 0.55)',
