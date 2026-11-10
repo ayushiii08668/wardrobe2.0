@@ -41,9 +41,24 @@ export function mapError(code?: string): MappedError {
         detail: "The reference image was rejected. Try a cleaner product photo."
       }
     case "SESSION_LIMIT":
+    case "session_limit":
       return {
-        title: "Key already in use",
-        detail: "Concurrent session limit reached. Close other tabs/apps using this key, then retry.",
+        title: "Session limit reached",
+        detail: "Another tab is currently using this Decart key. Please close duplicate 'Try-On Anywear' tabs and click Try Again.",
+        action: "retry"
+      }
+    case "insufficient_credits":
+    case "CREDITS_EXHAUSTED":
+      return {
+        title: "Decart AI credits exhausted",
+        detail: "Your Decart account has run out of credits or quota. Please check your credit balance at platform.decart.ai.",
+        action: "setup"
+      }
+    case "moderation_violation":
+    case "policy_violation":
+      return {
+        title: "Garment photo notice",
+        detail: "Decart's model rejected this image or camera framing. Try standing slightly further back and choosing another garment.",
         action: "retry"
       }
     case "CAPACITY":

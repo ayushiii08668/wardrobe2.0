@@ -194,6 +194,17 @@ export default function Room() {
           },
           onCapacityWait: (retryAfterMs) =>
             setBanner(`Server busy — retrying in ${Math.max(1, Math.round(retryAfterMs / 1000))} s`),
+          onSessionEnded: (reason) => {
+            clearTimeout(watchdog)
+            console.warn('[DecartRoom] session ended with reason:', reason)
+            const mapped = mapError(reason)
+            setError(mapped)
+            setPhaseWithRef("ALIGNING")
+            setRemote(null)
+            remoteRef.current = null
+            useUsageStore.getState().reset()
+            wornRef.current = false
+          },
           onError: (code, message) => {
             clearTimeout(watchdog)
             console.error('[DecartRoom] session onError:', code, message)

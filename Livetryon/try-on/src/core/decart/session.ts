@@ -12,6 +12,7 @@ export interface SessionCallbacks {
   onTick: (seconds: number) => void
   onError: (code: string, message: string) => void
   onCapacityWait?: (retryAfterMs: number) => void
+  onSessionEnded?: (reason: string) => void
 }
 
 export type RealtimeHandle = Awaited<ReturnType<typeof decartClient.realtime.connect>>
@@ -47,6 +48,14 @@ export async function startSession(
   rt.on("connectionChange", cb.onState)
   rt.on("generationTick", ({ seconds }) => cb.onTick(seconds))
   rt.on("error", (e: DecartSDKError) => cb.onError(e.code, e.message))
+  rt.on("sessionEnded", (e: any) => {
+    const reason = e?.reason || e || "unknown"
+    cb.onSessionEnded?.(String(reason))
+  })
+  rt.on("generationEnded", (e: any) => {
+    const reason = e?.reason || e || "unknown"
+    cb.onSessionEnded?.(String(reason))
+  })
   return rt
 }
 
