@@ -45,6 +45,16 @@ export default function Room() {
   const [compareHold, setCompareHold] = useState(false)
   const [fast, setFast] = useState(false)
   const [guide, setGuide] = useState<{ tone: GuideTone; hint: string }>(guideFor())
+  const [screenSize, setScreenSize] = useState<"wide" | "compact">("wide")
+  const stageWrapperRef = useRef<HTMLDivElement>(null)
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      stageWrapperRef.current?.requestFullscreen().catch(() => {})
+    } else {
+      document.exitFullscreen().catch(() => {})
+    }
+  }, [])
 
   const rtRef = useRef<RealtimeHandle | null>(null)
   const cameraRef = useRef<MediaStream | null>(null)
@@ -421,11 +431,14 @@ export default function Room() {
           : "Ready"
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-3 p-3">
+    <div
+      className={`mx-auto flex w-full ${
+        screenSize === "wide" ? "max-w-4xl" : "max-w-md"
+      } flex-col gap-4 p-4 md:p-6 transition-all duration-300`}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold">Try-On · Anywear</span>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline/60 pb-3">
+        <div className="flex items-center gap-2.5">
+          <span className="text-base font-bold tracking-tight">Try-On · Anywear</span>
           <button
             onClick={() =>
               window.open(
@@ -434,77 +447,117 @@ export default function Room() {
               )
             }
             title="Change Decart API Key"
-            className="rounded px-1.5 py-0.5 text-[11px] text-muted hover:bg-hairline/20 hover:text-foreground transition-all">
+            className="rounded-full border border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-muted hover:border-primary/50 hover:text-primary transition-all">
             ⚙️ Key
           </button>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs tabular-nums text-muted">
-            {Math.floor(usageSeconds / 60)}:{String(usageSeconds % 60).padStart(2, "0")} used
-          </span>
-          <StatusChip label={statusLabel} tone={phase === "LIVE" ? "live" : error ? "warn" : "default"} />
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Screen Size Switcher */}
+          <div className="flex items-center rounded-full border border-hairline bg-surface p-0.5 text-xs shadow-sm">
+            <button
+              onClick={() => setScreenSize("wide")}
+              className={`rounded-full px-3 py-1 font-semibold transition-all ${
+                screenSize === "wide" ? "bg-primary text-white shadow-sm" : "text-muted hover:text-ink"
+              }`}>
+              🖥️ Big Screen
+            </button>
+            <button
+              onClick={() => setScreenSize("compact")}
+              className={`rounded-full px-3 py-1 font-semibold transition-all ${
+                screenSize === "compact" ? "bg-primary text-white shadow-sm" : "text-muted hover:text-ink"
+              }`}>
+              📱 Compact
+            </button>
+          </div>
+
+          <button
+            onClick={toggleFullscreen}
+            title="Full Screen View"
+            className="flex items-center gap-1 rounded-full border border-hairline bg-surface px-3 py-1 text-xs font-semibold text-muted hover:border-primary/50 hover:text-primary transition-all shadow-sm">
+            ⛶ Fullscreen
+          </button>
+
+          <div className="flex items-center gap-2 border-l border-hairline pl-2.5">
+            <span className="text-xs tabular-nums text-muted">
+              {Math.floor(usageSeconds / 60)}:{String(usageSeconds % 60).padStart(2, "0")} used
+            </span>
+            <StatusChip label={statusLabel} tone={phase === "LIVE" ? "live" : error ? "warn" : "default"} />
+          </div>
         </div>
       </div>
 
-      {/* Stage */}
-      <Stage
-        localStream={camera}
-        remoteStream={remote}
-        showLocal={compareHold || phase === "ALIGNING"}
-        overlays={
-          <>
-            {phase === "ALIGNING" && <PersonGuide tone={guide.tone} hint={guide.hint} />}
-            {phase === "SCANNING" && (
-              <LaserScan
-                label={
-                  banner?.startsWith("Server busy")
-                    ? banner
-                    : "Scanning you in…"
-                }
-              />
-            )}
-            {phase === "LIVE" && banner && (
-              <div className="absolute inset-x-2 top-2 rounded-2xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-medium text-[#b47d1b] backdrop-blur">
-                {banner}
-              </div>
-            )}
-            {error && phase !== "LIVE" && (
-              <div className="absolute inset-x-2 bottom-2 rounded-2xl border border-hairline bg-surface/95 px-3 py-2 text-xs backdrop-blur">
-                <p className="font-semibold">{error.title}</p>
-                <p className="text-muted">{error.detail}</p>
-                {error.action === "setup" && (
-                  <Button
-                    className="mt-2"
-                    onClick={() => window.open(chrome.runtime.getURL("tabs/onboarding.html").replace(/^extension:\/\//, "chrome-extension://"), "_blank")}>
-                    Open setup
-                  </Button>
-                )}
-                {error.action === "retry" && (
-                  <Button
-                    className="mt-2"
-                    onClick={() => {
-                      setError(null)
-                      if (wardrobe.current) {
-                        void connect(wardrobe.current)
-                      } else {
-                        void beginAligning()
-                      }
-                    }}>
-                    Try again
-                  </Button>
-                )}
-              </div>
-            )}
-          </>
-        }
-      />
+      {/* Stage Wrapper */}
+      <div ref={stageWrapperRef} className="relative w-full overflow-hidden rounded-2xl shadow-xl">
+        <Stage
+          localStream={camera}
+          remoteStream={remote}
+          showLocal={compareHold || phase === "ALIGNING"}
+          overlays={
+            <>
+              {phase === "ALIGNING" && <PersonGuide tone={guide.tone} hint={guide.hint} />}
+              {phase === "SCANNING" && (
+                <LaserScan
+                  label={
+                    banner?.startsWith("Server busy")
+                      ? banner
+                      : "Scanning you in…"
+                  }
+                />
+              )}
+              {phase === "LIVE" && banner && (
+                <div className="absolute inset-x-3 top-3 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-2 text-xs font-medium text-[#b47d1b] backdrop-blur">
+                  {banner}
+                </div>
+              )}
+              {error && phase !== "LIVE" && (
+                <div className="absolute inset-x-3 bottom-3 rounded-2xl border border-hairline bg-surface/95 px-4 py-3 text-xs backdrop-blur shadow-2xl">
+                  <p className="font-semibold text-sm">{error.title}</p>
+                  <p className="text-muted mt-0.5">{error.detail}</p>
+                  {error.action === "setup" && (
+                    <Button
+                      className="mt-2.5"
+                      onClick={() =>
+                        window.open(
+                          chrome.runtime.getURL("tabs/onboarding.html").replace(/^extension:\/\//, "chrome-extension://"),
+                          "_blank"
+                        )
+                      }>
+                      Open setup
+                    </Button>
+                  )}
+                  {error.action === "retry" && (
+                    <Button
+                      className="mt-2.5"
+                      onClick={() => {
+                        setError(null)
+                        if (wardrobe.current) {
+                          void connect(wardrobe.current)
+                        } else {
+                          void beginAligning()
+                        }
+                      }}>
+                      Try again
+                    </Button>
+                  )}
+                </div>
+              )}
+            </>
+          }
+        />
+      </div>
 
       {/* Garment tray */}
-      <Card className="flex flex-col gap-2 p-3">
+      <Card className="flex flex-col gap-2.5 p-4 shadow-sm">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-muted">Garments</span>
-          <Button className="!px-3 !py-1.5 !text-xs" onClick={() => fileRef.current?.click()}>
-            + Try on
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted">Wardrobe Garments</span>
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+              {wardrobe.items.length} items
+            </span>
+          </div>
+          <Button className="!px-3.5 !py-1.5 !text-xs font-semibold" onClick={() => fileRef.current?.click()}>
+            + Upload Garment
           </Button>
           <input
             ref={fileRef}
@@ -519,7 +572,7 @@ export default function Room() {
           />
         </div>
         {wardrobe.items.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex gap-3 overflow-x-auto pb-2 pt-1">
             {wardrobe.items.map((g) => (
               <button
                 key={g.id}
@@ -531,15 +584,22 @@ export default function Room() {
                     await connect(g)
                   }
                 }}
-                className={`shrink-0 rounded-xl border p-1 ${
-                  wardrobe.current?.id === g.id ? "border-primary" : "border-hairline"
+                className={`group shrink-0 rounded-2xl border p-1.5 transition-all text-center ${
+                  wardrobe.current?.id === g.id
+                    ? "border-primary bg-primary/10 shadow-md ring-2 ring-primary/30"
+                    : "border-hairline bg-surface hover:border-primary/40 hover:bg-canvas"
                 }`}>
                 <img
                   src={URL.createObjectURL(g.blob)}
                   alt={g.name}
-                  className="h-14 w-14 rounded-lg object-cover"
+                  className={`${
+                    screenSize === "wide" ? "h-20 w-20" : "h-14 w-14"
+                  } rounded-xl object-cover transition-transform group-hover:scale-105`}
                   onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
                 />
+                <span className="block max-w-[80px] truncate text-[11px] font-medium text-muted mt-1">
+                  {g.name}
+                </span>
               </button>
             ))}
           </div>
@@ -558,8 +618,8 @@ export default function Room() {
         live={phase === "LIVE"}
       />
 
-      <p className="text-center text-[10px] text-muted">
-        Your webcam streams only to Decart — there is no other backend. Key stays local.
+      <p className="text-center text-[11px] text-muted">
+        Your webcam streams directly to Decart AI WebRTC. Key stays local in your browser.
       </p>
     </div>
   )
