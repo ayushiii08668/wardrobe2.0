@@ -15,7 +15,7 @@
  *   GET  /api/health              → Backend health check
  */
 
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
 // ─── Storage keys ──────────────────────────────────────────────────────────────
 const TOKEN_KEY  = 'wardrobewise_token';

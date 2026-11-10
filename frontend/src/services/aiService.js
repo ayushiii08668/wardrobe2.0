@@ -13,7 +13,7 @@
 
 import { PRODUCTS } from '../data/products.js';
 
-const AI_API_BASE = 'http://127.0.0.1:8000';
+const AI_API_BASE = import.meta.env.VITE_AI_SERVICE_URL || 'http://127.0.0.1:8000';
 
 // Mapping boutique catalog categories to AI service category_group and names
 const CATEGORY_MAP = {
